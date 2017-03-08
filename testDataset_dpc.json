@@ -1,0 +1,41 @@
+{
+    "common" : {
+        "time" : 9122448,
+        "date" : 9010117,
+        "datasetType" : "dpc",
+        "imgStackFileName" : "testDataset_dpc.tif",
+        "systemMag" : 40.000,
+        "objectiveNa" : 0.400,
+        "illuminationNa" : 0.400,
+        "pixelSize" : 4.540,
+        "colorChannelCount" : 1,
+        "wavelengthList" : [
+            0.520,
+            0.520,
+            0.520,
+            0.520
+        ],
+        "bayerEdgeCrop" : 0,
+        "bayerCouplingMatrix" : [
+            -1
+        ],
+        "zPositionList" : [
+            0.0
+        ],
+        "patternRotation" : [
+            0.00,
+            90.00,
+            180.00,
+            270.00
+        ],
+        "refractiveIndex" : 1.000
+    },
+    "dpc" : {
+        "sourceRotationList" : [
+            0.0,
+            180.0,
+            90.0,
+            270.0
+        ]
+    }
+}
