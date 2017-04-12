@@ -4,7 +4,9 @@
 #include <iostream>
 
 #include "include/json.h"
-#include "cMat.h"
+//#include "cMat.h"
+#include "./dpc.cpp"
+//#include "./dpc.cpp"
 
 #define libDebug 1
 
@@ -129,10 +131,24 @@ void showImgStack(cv::UMat * &imgStack, int stackCount)
 
 }
 
+void testRange() {
+    cMat rng = dpc::range(0.0, 360.0, 60.0);
+    std::cout << "Range to 360 is: " << rng << std::endl;
+    cMat rng2 = dpc::range(400, 0, 20);
+    std::cout << "Range from 400 to 0 w/ step size 20 is:" << rng2 << std::endl;
+}
+
+void runTests() {
+    testRange();
+}
+
 int main(int argc, char** argv)
 {
+    /*
     const char * datasetFilename_dpc_tif = "./testDataset_dpc.tif";
     cv::UMat * imgStack;
     uint16_t imgCount = loadImageStack(datasetFilename_dpc_tif, imgStack);
     showImgStack(imgStack, imgCount);
+    */
+    runTests();
 }
