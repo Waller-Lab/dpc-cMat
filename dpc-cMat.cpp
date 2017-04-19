@@ -10,6 +10,8 @@
 
 #define libDebug 1
 
+using namespace std;
+
 namespace libtiff {
     #include "tiffio.h"
 }
@@ -138,8 +140,54 @@ void testRange() {
     std::cout << "Range from 400 to 0 w/ step size 20 is:" << rng2 << std::endl;
 }
 
+void oldRotatedRect() {
+    cv::Point2f center (300, 500);
+    cv::Size2f size (200, 400);
+    //2 x 4 rectangle centered at 3, 3?
+    cv::RotatedRect rect (center, size, 0.0);
+    cv::Point2f pts [4];
+    rect.points(pts);
+    for (int i = 0; i < 4; i++) {
+        std::cout << pts[i] << std::endl;
+    }
+    cv::Mat img = cv::Mat::zeros(1024, 1024, CV_64F);
+    dpc::drawRotatedRectOld(img, rect, cv::Scalar(255, 0, 0));
+    cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE);
+    cv::imshow("Rectangle", img);
+    cv::waitKey(0);
+}
+
+void newRotatedRect() {
+    cv::Point2f center (300, 500);
+    cv::Size2f size (200, 400);
+    //2 x 4 rectangle centered at 3, 3?
+    cv::RotatedRect rect (center, size, 0.0);
+    cv::Point2f pts [4];
+    rect.points(pts);
+    for (int i = 0; i < 4; i++) {
+        std::cout << pts[i] << std::endl;
+    }
+    cvc::cMat img = cvc::zeros(1024, 1024);
+    dpc::drawRotatedRect(img, rect, cv::Scalar(255, 0, 0));
+    std::cout << "going into cmshow" << std::endl;
+//    std::cout << "cmat is: " << img << std::endl;
+    cvc::cmshow(img, "Rectangle");
+}
+
+void testPupilComputeOld() {
+    
+}
+
+void testPupilComputeNew() {
+
+}
+
 void runTests() {
-    testRange();
+//    testRange();
+//    oldRotatedRect();
+    newRotatedRect();
+//    testPupilComputeOld();
+//    testPupilComputeNew();
 }
 
 int main(int argc, char** argv)
