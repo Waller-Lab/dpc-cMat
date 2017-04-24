@@ -37,15 +37,18 @@ namespace dpc {
         cv::fillConvexPoly(image, vertices,4,color);
     }
 
-    inline void drawRotatedRect(cvc::cMat& image, cv::RotatedRect rRect, cv::Scalar color ) {
+    inline void drawRotatedRect(cvc::cMat& image, cv::RotatedRect rRect, cv::Scalar color) {
 
-        cv::Point2f vertices2f[4];
-        cv::Point vertices[4];
-        rRect.points(vertices2f);
-        for(int i = 0; i < 4; ++i){
-            vertices[i] = vertices2f[i];
-        }
-        cvc::fillConvexPoly(image, vertices,4,color);
+        // cv::Point2f vertices2f[4];
+        // cv::Point vertices[4];
+        // rRect.points(vertices2f);
+        // for(int i = 0; i < 4; ++i){
+        //     vertices[i] = vertices2f[i];
+        // }
+        cv::Mat real = cv::Mat::zeros(image.size(), image.type());
+        cv::fillConvexPoly(real, 4, color);
+        image.real = real.getUMat(cv::ACCESS_RW);
+//        cvc::fillConvexPoly(image, vertices,4,color);
     }
 
 }

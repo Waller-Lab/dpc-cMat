@@ -158,8 +158,8 @@ void oldRotatedRect() {
 }
 
 void newRotatedRect() {
-    cv::Point2f center (300, 500);
-    cv::Size2f size (200, 400);
+    cv::Point2f center (5, 5);
+    cv::Size2f size (2, 4);
     //2 x 4 rectangle centered at 3, 3?
     cv::RotatedRect rect (center, size, 0.0);
     cv::Point2f pts [4];
@@ -167,27 +167,170 @@ void newRotatedRect() {
     for (int i = 0; i < 4; i++) {
         std::cout << pts[i] << std::endl;
     }
-    cvc::cMat img = cvc::zeros(1024, 1024);
+    cvc::cMat img = cvc::zeros(10, 10);
     dpc::drawRotatedRect(img, rect, cv::Scalar(255, 0, 0));
     std::cout << "going into cmshow" << std::endl;
-//    std::cout << "cmat is: " << img << std::endl;
+    std::cout << "cmat is: " << img << std::endl;
     cvc::cmshow(img, "Rectangle");
 }
 
+void smallRect() {
+
+}
+
 void testPupilComputeOld() {
-    
+
 }
 
 void testPupilComputeNew() {
 
 }
 
+void oldMain(std::string jsonFileName, std::string imageFileName) {
+
+    // Parse JSON file
+    Json::Value calibrationJson;
+    Json::Reader reader;
+    ifstream jsonFile(jsonFileName);
+    reader.parse(jsonFile, calibrationJson);
+
+    double systemNA = calibrationJson.get("defaultNA",0).asFloat();
+    double systemMag = calibrationJson.get("defaultMag",0).asFloat();
+
+    // Parse calibration parameters
+    double sourceCenterWidthHorz = calibrationJson.get("sourceCenterWidthHorz",0).asFloat();
+    double sourceCenterWidthVert = calibrationJson.get("sourceCenterWidthVert",0).asFloat();
+    //double lambda = calibrationJson.get("lambda",0).asFloat();
+    double sourceRotation = calibrationJson.get("sourceRotation",0).asFloat();
+    double ps = calibrationJson.get("pixelSize",0).asFloat();
+    double ps_eff = ps/systemMag;
+
+    //errors somewhere between here
+
+	double lambda[3];
+	lambda[0] = calibrationJson.get("lambda",0)[0].get("r",0).asDouble();
+	lambda[1] = calibrationJson.get("lambda",0)[1].get("g",0).asDouble();
+	lambda[2] = calibrationJson.get("lambda",0)[2].get("b",0).asDouble();
+    std::cout << lambda[0] <<std::endl;
+    std::cout << lambda[1] <<std::endl;
+    std::cout << lambda[2] <<std::endl;
+
+    //and here
+
+    std::string sourceType = calibrationJson.get("sourceType","Quadrant").asString();
+    int8_t nSources;
+    // Get source calibration coefficients
+    if (sourceType == "Quadrant")
+        nSources = 4;
+    else if (sourceType == "Tri")
+        nSources = 3;
+    std::cout<<"coeffs"<<std::endl;
+    double sourceCoefficients[nSources][3];
+    Json::Value sCoeffs = calibrationJson.get("sourceCoefficients",0);
+
+    for (int16_t sIdx=0; sIdx<nSources; sIdx++)
+    {
+        sourceCoefficients[sIdx][0] = sCoeffs[sIdx][0].get("r",0).asDouble();
+        sourceCoefficients[sIdx][1] = sCoeffs[sIdx][1].get("g",0).asDouble();
+        sourceCoefficients[sIdx][2] = sCoeffs[sIdx][2].get("b",0).asDouble();
+
+        std::cout << sourceCoefficients[sIdx][0]<<std::endl;
+        std::cout << sourceCoefficients[sIdx][1]<<std::endl;
+        std::cout << sourceCoefficients[sIdx][2]<<std::endl;
+    }
+
+	// Try to Load Image
+	Mat img = imread(imageFileName, -1); // Load image
+    if (img.rows ==0 || img.cols ==2)
+    {
+        std::cout << "ERROR - Image does not exist!" <<std::endl;
+    }
+
+	img.convertTo(img,CV_64FC1);
+    //Mat imgC = Mat::zeros(img.rows/2,img.cols/2,CV_64FC3);
+	Mat imgC[] = {Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+		          Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+				  Mat::zeros(img.rows/2,img.cols/2,CV_64FC1)};
+
+	Raw2Color(img, imgC);
+
+    showImg(imgC[0],"rawimageR", -1);
+	showImg(imgC[1],"rawimageG", -1);
+	showImg(imgC[2],"rawimageB", -1);
+	showImgC(imgC, "rawimageRGB", COLORIMAGE_REAL);
+
+
+    // Generate Sources
+    cv::Mat Source[] = {cv::Mat::zeros(imgC[0].rows, imgC[0].cols, CV_64FC2),
+                        cv::Mat::zeros(imgC[0].rows, imgC[0].cols, CV_64FC2),
+                        cv::Mat::zeros(imgC[0].rows, imgC[0].cols, CV_64FC2)};
+
+	SourceComputeOld(Source,sourceRotation, systemNA, lambda, ps_eff,
+	              sourceCenterWidthHorz, sourceCenterWidthVert, sourceCoefficients);
+
+	showImgC(Source, "Source", COLORIMAGE_COMPLEX);
+
+	// Generate Transfer Functions
+	Mat HiList[] = {cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2),
+		            cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2),
+					cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2)};
+    Mat HrList[] = {cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2),
+		            cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2),
+		     		cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2)};
+
+	for (int sIdx=0; sIdx<3; sIdx++)
+	{
+		// Generate Pupil
+		Mat Pupil = Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2);
+		PupilComputeOld(Pupil, systemNA, lambda[sIdx], ps_eff);
+
+		//showComplexImg(Source[sIdx],SHOW_COMPLEX_REAL,"Source");
+
+		HrHiComputeOld(HiList[sIdx], HrList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
+		showComplexImg(HrList[sIdx],SHOW_COMPLEX_REAL,"Hr", cv::COLORMAP_JET);
+		showComplexImg(HiList[sIdx],SHOW_COMPLEX_IMAGINARY,"Hi", cv::COLORMAP_JET);
+	}
+
+  // Deconvolution Process
+
+	cv::Mat CDPC_Results = cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2);
+	std::complex<double> Regularization = std::complex<double>(1.0e-1,1.0e-3);
+
+	cv::Mat A[5];
+
+    GenerateAOld(A,HrList,HiList,Regularization);
+
+	ColorDeconvolution_L2Old(CDPC_Results, imgC, A, HrList, HiList, lambda[1]);
+	//writes the output matrix to a file for comparison
+    /*
+	std::ofstream output("outputMatrix.txt");
+	output << "Rows: " << CDPC_Results.rows << std::endl;
+	output << "Cols: " << CDPC_Results.cols << std::endl;
+	for(int i = 0; i < CDPC_Results.rows; i++) // loop through y
+ 	{
+    	const double* m_i = CDPC_Results.ptr<double>(i);
+     	for(int j = 0; j < CDPC_Results.cols; j++)
+     	{
+     		output << m_i[CDPC_Results.cols * i + j] << " ";
+     		if (j % 10 == 0) {
+     			output << std::endl;
+     		}
+    	}
+ 	}
+	output.close();
+    */
+	showComplexImg(CDPC_Results,SHOW_COMPLEX_REAL,"Recovered Amplitude",-1);
+	showComplexImg(CDPC_Results,SHOW_COMPLEX_IMAGINARY,"Recovered Phase", cv::COLORMAP_JET);
+
+}
+
 void runTests() {
 //    testRange();
 //    oldRotatedRect();
-    newRotatedRect();
+//    newRotatedRect();
 //    testPupilComputeOld();
 //    testPupilComputeNew();
+    oldMain("testDataset_dpc.json", "testDataset_dpc.tif");
 }
 
 int main(int argc, char** argv)

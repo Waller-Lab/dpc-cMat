@@ -212,14 +212,22 @@ void PupilCompute(cvc::cMat& output, double NA, double Lambda, double ps){
     int16_t c = output.cols();
 
     cvc::cMat planes = cvc::zeros(r, c);
+    Mat pupil = Mat::zeros(r, c, CV_64FC1);
+    Mat zeros = Mat::zeros(r, c, CV_64FC1);
 
     cv::Point center(cvRound(c / 2), cvRound(r / 2));
     int16_t naRadius_h = (int16_t)ceil(NA * ps * c / Lambda);
     int16_t naRadius_v = (int16_t)ceil(NA * ps * r / Lambda);
 
-    cvc::ellipse(planes, center, cv::Size(naRadius_h,naRadius_v), 0, 0, 360, cv::Scalar(1.0), -1, 8, 0);
+//    cvc::ellipse(planes, center, cv::Size(naRadius_h,naRadius_v), 0, 0, 360, cv::Scalar(1.0), -1, 8, 0);
 
-    output = planes;
+//    planes.real = cv::ellipse(zeros, center, cv::Size(naRadius_h,naRadius_v), 0, 0, 360, cv::Scalar(1.0), -1, 8, 0);
+    cv::ellipse(pupil, center, cv::Size(naRadius_h,naRadius_v), 0, 0, 360, cv::Scalar(1.0), -1, 8, 0);
+
+//    output = planes;
+    output.real = pupil.getUMat(cv::ACCESS_RW);
+//    output.image = Mat::zeros(r, c, CV_64FC1).getUMat(CV_64FC1);
+    output.imag = zeros.getUMat(cv::ACCESS_RW);
     //TODO figure out how to make sure this changes what is stored at the memory location. Does it do it
     //automatically since output is a cMat&?
 }
@@ -338,6 +346,8 @@ void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const
 
         double circleWidth = cv::min(pupil.rows(),pupil.cols());
 
+        /*
+
         cvc::cMat q = cvc::zeros(pupil.rows(), pupil.cols());
         cvc::cMat q_temp = cvc::zeros(pupil.rows(), pupil.cols());
 
@@ -362,10 +372,37 @@ void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const
         q_temp = q_temp*quadrantCoefficents[3][cIdx];
         q = q + q_temp;
 
+        */
+
+        Mat q = Mat::zeros(pupil.rows(), pupil.cols(), CV_64FC1);
+        Mat q_temp = Mat::zeros(pupil.rows(), pupil.cols(), CV_64FC1);
+
+        // Generate 90 degree sources (rotate each quadrant)
+        cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
+        cvRound(circleWidth / 2)), RotAngle, -180, -90, cv::Scalar(1.0), -1, 8, 0);
+        q_temp = q_temp*quadrantCoefficents[0][cIdx];
+        q = q + q_temp;
+
+        cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
+        cvRound(circleWidth / 2)), RotAngle+90, -180, -90, cv::Scalar(1.0), -1, 8, 0);
+        q_temp = q_temp*quadrantCoefficents[1][cIdx];
+        q = q + q_temp;
+
+        cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth/ 2),
+        cvRound(circleWidth / 2)), RotAngle+180, -180, -90, cv::Scalar(1.0), -1, 8, 0);
+        q_temp = q_temp*quadrantCoefficents[2][cIdx];
+        q = q + q_temp;
+
+        cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
+        cvRound(circleWidth / 2)), RotAngle+270, -180, -90, cv::Scalar(1.0), -1, 8, 0);
+        q_temp = q_temp*quadrantCoefficents[3][cIdx];
+        q = q + q_temp;
+
         // Mat complexPlanes[2] = {cv::Mat(q.rows,q.cols,q.type()),
         //                         cv::Mat(q.rows,q.cols,q.type())};
 
-        cvc::cMat complexPlanes = cvc::zeros(q.rows(), q.cols());
+//        cvc::cMat complexPlanes = cvc::zeros(q.rows(), q.cols());
+        cvc::cMat complexPlanes (q.rows, q.cols);
 
         // add to rgb source and crop to pupil
         // Mat tmpSource = cv::Mat::zeros(pupil.rows,pupil.cols,pupil.type());
@@ -653,52 +690,52 @@ void ColorDeconvolution_L2Old(cv::Mat& output, cv::Mat* Intensity, cv::Mat* A, c
 
 }
 
-void ColorDeconvolution_L2(cv::Mat& output, cv::Mat* Intensity, cv::Mat* A, cv::Mat* HrList, cv::Mat* HiList, double Lambda) {
+void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HrList, cvc::cMat* HiList, double Lambda) {
 
-	cv::Mat Ma_temp = cv::Mat::zeros(output.rows,output.cols,CV_64FC2);
-	cv::Mat Mb_temp = cv::Mat::zeros(output.rows,output.cols,CV_64FC2);
-	cv::Mat Mc_temp = cv::Mat::zeros(output.rows,output.cols,CV_64FC2);
+	cvc::cMat Ma_temp = cvc::zeros(output.rows(),output.cols());
+	cvc::cMat Mb_temp = cvc::zeros(output.rows(),output.cols());
+	cvc::cMat Mc_temp = cvc::zeros(output.rows(),output.cols());
 
-	cv::Mat I1 = cv::Mat::zeros(output.rows,output.cols,CV_64FC2);
-	cv::Mat I2 = cv::Mat::zeros(output.rows,output.cols,CV_64FC2);
+	cvc::cMat I1 = cvc::zeros(output.rows(), output.cols());
+	cvc::cMat I2 = cvc::zeros(output.rows(), output.cols());
 
-	cv::Mat S_temp[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
-	                     cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
-	cv::Mat outputS[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
-				          cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
+//	cv::Mat S_temp[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
+//	                     cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
+//	cv::Mat outputS[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
+//				          cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
 
-	for(int16_t cIdx=0; cIdx<3; cIdx++) //for all 3 color channels
-	{
-		S_temp[0] = Intensity[cIdx]; //???
-		cv::merge(S_temp, 2, Mc_temp); //creates 1 multi-channel array out of several single-channel ones
-		//size of S_temp is 2
-		fft2(Mc_temp, Ma_temp); //Fourier transform intensities
-		complexConj(HrList[cIdx], Mb_temp); //Mb_temp has the A Hermitian matrix
-		complexMultiply(Ma_temp, Mb_temp, Mc_temp); //multiply Ma_temp and Mb_temp and store them in Mc_temp
-		I1 = I1 + Mc_temp; //each time add result from elementwise multiplication
+    cvc::cMat S_temp = cvc::zeros(output.rows(), output.cols());
+//    cvc::cMat outputS = cvc::zeros(output.rows(), output.cols());
 
-		cv::merge(S_temp, 2, Mc_temp);
-		fft2(Mc_temp, Ma_temp);
-		complexConj(HiList[cIdx], Mb_temp);
-		complexMultiply(Ma_temp, Mb_temp, Mc_temp); //generate I2
-		I2 = I2 + Mc_temp;
+	for(int16_t cIdx=0; cIdx<3; cIdx++) {
+        S_temp.real = Intensity[cIdx].real;
+
+        Mc_temp = S_temp;
+        Ma_temp = cvc::fft2(Mc_temp);
+        Mb_temp = cvc::conj(HrList[cIdx]);
+        Mc_temp = Ma_temp * Mc_temp;
+        I1 = I1 + Mc_temp;
+
+        Mc_temp = S_temp;
+        Ma_temp = fft2(Mc_temp);
+        Mb_temp = cvc::conj(HiList[cIdx]);
+        Mc_temp = Ma_temp * Mb_temp;
+        I2 = I2 + Mc_temp;
 	}
 
-	complexMultiply(I1, A[3], Ma_temp);
-	complexMultiply(I2, A[1], Mb_temp);
-	complexDivide((Mb_temp-Ma_temp), A[4], Mc_temp); //Mc_temp now contains f{phase}
-	ifft2(Mc_temp, Ma_temp); //Ma_temp has phase
-	cv::split(Ma_temp, S_temp); //split into the 3 color channels
-	exp(S_temp[0], outputS[0]); //???
+//    Ma_temp = I1 * A[3];
+//    Mb_temp = I2 * A[1];
+//    Mc_temp = (Mb_temp - Ma_temp) / A[4];
+    Mc_temp = (I2 * A[1] - I1 * A[3]) / A[4];
+    S_temp = cvc::ifft2(Mc_temp);
+    output.real = cvc::exp(S_temp).real;
 
-
-	complexMultiply(I2, A[0], Ma_temp);
-	complexMultiply(I1, A[2], Mb_temp);
-	complexDivide((Mb_temp-Ma_temp), A[4], Mc_temp); //Mc_temp has f{absorption}
-	ifft2(Mc_temp, Ma_temp); //Ma_temp has absorption
-	cv::split(Ma_temp, S_temp);
-	outputS[1] = S_temp[0]/Lambda; //normalizing using lambda?
-
-	cv::merge(outputS,2,output);
+//    Ma_temp = I2 * A[0];
+//    Mb_temp = I1 * A[2];
+//    Mc_temp = (Mb_temp - Ma_temp) / A[4];
+    Mc_temp = (I1 * A[2] - I2 * A[0]) / A[4];
+    Ma_temp = cvc::ifft2(Mc_temp);
+    S_temp = Ma_temp;
+    output.imag = (S_temp / Lambda).real;
 
 }
