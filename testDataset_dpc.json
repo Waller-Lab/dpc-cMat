@@ -28,14 +28,18 @@
             180.00,
             270.00
         ],
-        "refractiveIndex" : 1.000
+        "refractiveIndex" : 1.000,
+        "sourceType" : "Quadrant",
+        "sourceCenterWidthHorz":0.022,
+        "sourceCenterWidthVert":0.0439
     },
     "dpc" : {
-        "sourceRotationList" : [
-            0.0,
-            180.0,
-            90.0,
-            270.0
+        "sourceGlobalRotation" : 45,
+        "sourceCoefficients": [
+            [0, 1, 1, 0],
+            [0, 1, 0, 1],
+            [1, 0, 0, 1],
+            [1, 0, 1, 0]
         ]
     }
 }

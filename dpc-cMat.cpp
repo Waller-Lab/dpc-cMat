@@ -116,21 +116,31 @@ uint16_t loadImageStack(const char * fileName, cv::UMat * &imgStackToFill)
 
 void showImgStack(cv::UMat * &imgStack, int stackCount)
 {
-    // Display Image Stack
-    cv::UMat displayMat;
-
     for (int pIdx = 0; pIdx < stackCount; pIdx++)
     {
-        imgStack[pIdx].convertTo(displayMat, CV_8UC1, 255.0 / (65536.0));
-        cv::startWindowThread();
         char winTitle[100]; // Temporary title string
         sprintf(winTitle, "Image %d of %d", pIdx + 1, stackCount);
-        cv::namedWindow(winTitle, cv::WINDOW_NORMAL);
-        cv::imshow(winTitle, displayMat);
+        showImg(imgStack[pIdx].getMat(ACCESS_READ), winTitle, -1);
     }
     cv::waitKey();
     cv::destroyAllWindows();
+}
 
+void showCMatStack(cvc::cMat * &imgStack, int stackCount, std::string title = "") {
+    if (title == "") {
+        title = "Image ";
+    }
+    for (int i = 0; i < stackCount; i++) {
+        showImg(imgStack[i].real.getMat(ACCESS_READ), title + std::to_string(i)
+            + ", Real Part", -1);
+        showImg(imgStack[i].imag.getMat(ACCESS_READ), title + std::to_string(i)
+            + ", Imaginary Part", -1);
+        cvc::cMat ab = cvc::abs(imgStack[i]);
+        showImg(ab.real.getMat(ACCESS_READ), title + std::to_string(i)
+            + ", Norm", -1);
+    }
+    cv::waitKey();
+    cv::destroyAllWindows();
 }
 
 void testRange() {
@@ -138,52 +148,6 @@ void testRange() {
     std::cout << "Range to 360 is: " << rng << std::endl;
     cMat rng2 = dpc::range(400, 0, 20);
     std::cout << "Range from 400 to 0 w/ step size 20 is:" << rng2 << std::endl;
-}
-
-void oldRotatedRect() {
-    cv::Point2f center (300, 500);
-    cv::Size2f size (200, 400);
-    //2 x 4 rectangle centered at 3, 3?
-    cv::RotatedRect rect (center, size, 0.0);
-    cv::Point2f pts [4];
-    rect.points(pts);
-    for (int i = 0; i < 4; i++) {
-        std::cout << pts[i] << std::endl;
-    }
-    cv::Mat img = cv::Mat::zeros(1024, 1024, CV_64F);
-    dpc::drawRotatedRectOld(img, rect, cv::Scalar(255, 0, 0));
-    cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE);
-    cv::imshow("Rectangle", img);
-    cv::waitKey(0);
-}
-
-void newRotatedRect() {
-    cv::Point2f center (5, 5);
-    cv::Size2f size (2, 4);
-    //2 x 4 rectangle centered at 3, 3?
-    cv::RotatedRect rect (center, size, 0.0);
-    cv::Point2f pts [4];
-    rect.points(pts);
-    for (int i = 0; i < 4; i++) {
-        std::cout << pts[i] << std::endl;
-    }
-    cvc::cMat img = cvc::zeros(10, 10);
-    dpc::drawRotatedRect(img, rect, cv::Scalar(255, 0, 0));
-    std::cout << "going into cmshow" << std::endl;
-    std::cout << "cmat is: " << img << std::endl;
-    cvc::cmshow(img, "Rectangle");
-}
-
-void smallRect() {
-
-}
-
-void testPupilComputeOld() {
-
-}
-
-void testPupilComputeNew() {
-
 }
 
 void oldMain(std::string jsonFileName, std::string imageFileName) {
@@ -291,7 +255,7 @@ void oldMain(std::string jsonFileName, std::string imageFileName) {
 		showComplexImg(HiList[sIdx],SHOW_COMPLEX_IMAGINARY,"Hi", cv::COLORMAP_JET);
 	}
 
-  // Deconvolution Process
+    // Deconvolution Process
 
 	cv::Mat CDPC_Results = cv::Mat::zeros(imgC[0].rows,imgC[0].cols,CV_64FC2);
 	std::complex<double> Regularization = std::complex<double>(1.0e-1,1.0e-3);
@@ -324,13 +288,277 @@ void oldMain(std::string jsonFileName, std::string imageFileName) {
 
 }
 
+void testMain() {
+    std::string json = "testDataset_dpc.json";
+
+    //Parse json
+    Json::Value calibrationJson;
+    Json::Reader reader;
+    ifstream jsonFile (json);
+    //reads jsonFile into calibrationJson
+    reader.parse(jsonFile, calibrationJson);
+
+    //get component objects
+    Json::Value common = calibrationJson.get("common", 0);
+    Json::Value dpc = calibrationJson.get("dpc", 0);
+
+    if (common == 0 || dpc == 0) {
+        std::cout << "ERROR: SOME PARAMETERS NOT PROVIDED" << std::endl;
+        return;
+    }
+
+    std::string imageFileName = common.get("imgStackFileName", 0).asString();
+    std::cout << "Image File Name: " << imageFileName << std::endl;
+
+    std::string type = common.get("datasetType", 0).asString();
+
+    UMat* mats;
+    uint16_t nImgs;
+
+    if (type == "dpc") {
+        nImgs = loadImageStack(imageFileName.c_str(), mats);
+//        mats.convertTo(mats, CV_64FC1);
+        for (int i = 0; i < nImgs; i++) {
+            mats[i].convertTo(mats[i], CV_64FC1);
+        }
+    } else if (type == "cdpc") {
+        mats = new UMat[3];
+        nImgs = 3;
+        //load image
+        Mat img = imread(imageFileName, -1);
+        if (img.rows ==0 || img.cols ==2)
+        {
+            std::cout << "ERROR - Image does not exist!" <<std::endl;
+        }
+
+        img.convertTo(img,CV_64FC1);
+        //Mat imgC = Mat::zeros(img.rows/2,img.cols/2,CV_64FC3);
+        Mat imgC[] = {Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+                      Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+                      Mat::zeros(img.rows/2,img.cols/2,CV_64FC1)};
+        Raw2Color(img, imgC);
+        for (int i = 0; i < 3; i++) {
+            mats[i] = imgC[i].getUMat(cv::ACCESS_RW);
+        }
+    } else {
+        std::cout << "ERROR: Must give a type" << std::endl;
+        return;
+    }
+
+    showImgStack(mats, nImgs);
+    cv::Size size = mats[0].size();
+
+    //TODO see if this works
+    cvc::cMat* images = new cvc::cMat[nImgs];
+    for (int i = 0; i < nImgs; i++) {
+        images[i] = *(new cvc::cMat(mats[i]));
+    }
+
+    double systemNa = common.get("objectiveNa", 0).asFloat();      //TODO systemNa = objectiveNa?
+    double illumNa = common.get("illuminationNa", 0).asFloat();
+    double systemMag = common.get("systemMag", 0).asFloat();
+
+    std::cout << "System NA is: " << systemNa << std::endl;
+    std::cout << "Illumination NA is: " << illumNa << std::endl;
+    std::cout << "System Magnification is: " << systemMag << std::endl;
+    std::cout << "Image size is: " << size << std::endl;
+
+    // TODO what are these two?
+    double sourceCenterWidthHorz = common.get("sourceCenterWidthHorz", 0).asFloat();
+    double sourceCenterWidthVert = common.get("sourceCenterWidthVert", 0).asFloat();
+
+    std::cout << "Source Center Horizontal: " << sourceCenterWidthHorz << std::endl;
+    std::cout << "Source Center Vertical: " << sourceCenterWidthVert << std::endl;
+
+    // TODO how to turn the Json::Value into an array?
+    // ex we turn it to a double with .asDouble(), so how to go to array?
+
+//    double* sourceRotation = dpc.get("sourceRotation",0).asDouble();
+    Json::Value sourceRotationLst = dpc.get("sourceRotationList", 0);
+    double RotAngle = dpc.get("sourceRotation", 0).asFloat();       //TODO 0 or 90?
+
+    //does this do anything?
+    double srcRot [sourceRotationLst.size()];
+    for (int i = 0; i < sourceRotationLst.size(); i++) {
+        srcRot[i] = sourceRotationLst[i].asFloat();
+        std::cout << "Source Rotation #" << i << "\n" << srcRot[i] << std::endl;
+    }
+    std::cout << "Source Rotation Angle: " << srcRot << std::endl;
+
+    //access values by sourceRotation[i].asFloat()
+//    std::cout << rotVal[1].asFloat() << std::endl;
+    double ps = common.get("pixelSize",0).asFloat();
+    double ps_eff = ps/systemMag;
+
+    std::cout << "Pixel Size is: " << ps << std::endl;
+
+    Json::Value lambdas = common.get("wavelengthList", 0);
+//    double lambda [3];
+    double lambda [4];
+
+    lambda[0] = lambdas[0].asDouble();
+    lambda[1] = lambdas[1].asDouble();
+    lambda[2] = lambdas[2].asDouble();
+    lambda[3] = lambdas[3].asDouble();
+    std::cout << "Wavelength 1 is: " << lambda[0] << std::endl;
+    std::cout << "Wavelength 2 is: " << lambda[1] << std::endl;
+    std::cout << "Wavelength 3 is: " << lambda[2] << std::endl;
+    std::cout << "Wavelength 4 is: " << lambda[3] << std::endl;
+
+    std::string sourceType = common.get("sourceType","Quadrant").asString();
+    int8_t nSources;
+    // Get source calibration coefficients
+    // TODO determine if we want Quadrant or Tri
+    if (sourceType == "Quadrant") {
+        nSources = 4;
+    } else if (sourceType == "Tri") {
+        nSources = 3;
+    }
+    //TODO use nSources or nImgs for counting to 4?
+    // Get source calibration coefficients. Read down the columns
+    std::cout<< "coeffs" <<std::endl;
+    double sourceCoefficients[nSources][4];     //TODO make it [4] sized probs
+    Json::Value sCoeffs = dpc.get("sourceCoefficients",0);
+    for (int16_t sIdx=0; sIdx<nSources; sIdx++) {
+
+        Json::Value temp = sCoeffs[sIdx];
+//        std::cout << temp.isArray() << std::endl;
+        // sourceCoefficients[sIdx][0] = temp[0].asDouble();
+        // sourceCoefficients[sIdx][1] = temp[1].asDouble();
+        // sourceCoefficients[sIdx][2] = temp[2].asDouble();
+        // sourceCoefficients[sIdx][3] = temp[3].asDouble();
+
+        sourceCoefficients[0][sIdx] = temp[0].asDouble();
+        sourceCoefficients[1][sIdx] = temp[1].asDouble();
+        sourceCoefficients[2][sIdx] = temp[2].asDouble();
+        sourceCoefficients[3][sIdx] = temp[3].asDouble();
+
+//        sourceCoefficients[sIdx][0] = sCoeffs[sIdx][0].get("r",0).asDouble();
+//        sourceCoefficients[sIdx][1] = sCoeffs[sIdx][1].get("g",0).asDouble();
+//        sourceCoefficients[sIdx][2] = sCoeffs[sIdx][2].get("b",0).asDouble();
+
+        // std::cout << sourceCoefficients[sIdx][0] << std::endl;
+        // std::cout << sourceCoefficients[sIdx][1] << std::endl;
+        // std::cout << sourceCoefficients[sIdx][2] << std::endl;
+        // std::cout << sourceCoefficients[sIdx][3] << std::endl;
+    }
+
+    for (int sIdx = 0; sIdx < nSources; sIdx++) {
+        for (int i = 0; i < 4; i++) {
+            std::cout << sourceCoefficients[sIdx][i] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    // for each source (trial number) index first. Ie to get quadrants for first
+    // trial use sourceCoefficients[sIdx][i], where i is 1 if you want that quadrant
+    // on and 0 if you want that quadrant off
+
+//     //load image
+//     Mat img = imread(imageFileName, -1);
+//     if (img.rows ==0 || img.cols ==2)
+//     {
+//         std::cout << "ERROR - Image does not exist!" <<std::endl;
+//     }
+//
+//     img.convertTo(img,CV_64FC1);
+//     //Mat imgC = Mat::zeros(img.rows/2,img.cols/2,CV_64FC3);
+//     Mat imgC[] = {Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+//                   Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+//                   Mat::zeros(img.rows/2,img.cols/2,CV_64FC1)};
+//
+// //    Raw2Color(img, imgC);
+
+    // cv::UMat imgs [3];
+    // for (int i = 0; i < 3; i++) {
+    //     imgs[i] = imgC[i].getUMat(cv::ACCESS_RW);
+    // }
+    // cv::UMat * imPtr = imgs;
+    // //TODO why not showing images? it works for one with a Mat
+    // showImgStack(imPtr, 3);
+
+    // Generate Sources
+    // cvc::cMat Source[] = {
+    //         cvc::zeros(imgC[0].rows, imgC[0].cols),
+    //         cvc::zeros(imgC[0].rows, imgC[0].cols),
+    //         cvc::zeros(imgC[0].rows, imgC[0].cols)
+    // };
+    //TODO might have to add a fourth source
+    cvc::cMat Source[] = {
+            cvc::zeros(size),
+            cvc::zeros(size),
+            cvc::zeros(size),
+            cvc::zeros(size)
+    };
+
+    SourceCompute(Source, RotAngle, systemNa, lambda, ps_eff,
+        sourceCenterWidthHorz, sourceCenterWidthVert, sourceCoefficients);
+    cvc::cMat* ptr;
+    ptr = Source;
+    showCMatStack(ptr, 4, "Source ");
+
+	// Generate Transfer Function
+
+    // TODO HrList and HiList or just HList?
+    // currently just doing HList, but can easily switch to HrList and HiList if needed.
+
+    // cvc::cMat HrList[] = {
+    //     cvc::zeros(size),
+    //     cvc::zeros(size),
+    //     cvc::zeros(size),
+    //     cvc::zeros(size)
+    // };
+    //
+    // cvc::cMat HiList[] = {
+    //     cvc::zeros(size),
+    //     cvc::zeros(size),
+    //     cvc::zeros(size),
+    //     cvc::zeros(size)
+    // };
+
+    cvc::cMat HList[] = {
+        cvc::zeros(size),
+        cvc::zeros(size),
+        cvc::zeros(size),
+        cvc::zeros(size)
+    };
+
+    for (int sIdx=0; sIdx<nSources; sIdx++) {
+    	// Generate Pupil
+    	cvc::cMat Pupil = cvc::zeros(size);
+    	PupilCompute(Pupil, systemNa, lambda[sIdx], ps_eff);
+        // ptr = &Pupil;
+        // showCMatStack(ptr, 1);
+
+        //HrHiCompute(HrList[sIdx], HiList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
+        HrHiCompute(HList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
+	}
+    ptr = HList;
+    showCMatStack(ptr, 4, "Transfer Function ");
+
+    // Deconvolution Process
+
+	cvc::cMat CDPC_Results = cvc::zeros(size);
+	std::complex<double> Regularization = std::complex<double>(1.0e-1,1.0e-3);
+
+	cvc::cMat A[5];
+
+//    GenerateA(A, HrList, HiList, Regularization);
+    GenerateA(A, HList, Regularization);
+
+//	ColorDeconvolution_L2(CDPC_Results, imgC, A, HrList, HiList, lambda[1]);
+    ColorDeconvolution_L2(CDPC_Results, imgC, A, HList, lambda[1]);
+//	showComplexImg(CDPC_Results,SHOW_COMPLEX_REAL,"Recovered Amplitude",-1);
+//	showComplexImg(CDPC_Results,SHOW_COMPLEX_IMAGINARY,"Recovered Phase", cv::COLORMAP_JET);
+    showImg(CDPC_Results.real.getMat(ACCESS_READ), "Recovered Amplitude", -1);
+    showImg(CDPC_Results.imag.getMat(ACCESS_READ), "Recovered Phase");
+
+}
+
 void runTests() {
 //    testRange();
-//    oldRotatedRect();
-//    newRotatedRect();
-//    testPupilComputeOld();
-//    testPupilComputeNew();
-    oldMain("testDataset_dpc.json", "testDataset_dpc.tif");
+//    oldMain("testDataset_dpc.json", "testDataset_dpc.tif");
+    testMain();
 }
 
 int main(int argc, char** argv)
@@ -341,5 +569,6 @@ int main(int argc, char** argv)
     uint16_t imgCount = loadImageStack(datasetFilename_dpc_tif, imgStack);
     showImgStack(imgStack, imgCount);
     */
-    runTests();
+    //runTests();
+    testMain();
 }

@@ -266,8 +266,8 @@ void SourceComputeOld(cv::Mat* sourceRgb, double RotAngle, double NA_illum, cons
         cv::RotatedRect rect2(center, cv::Size(rectWidth,2*crossV),RotAngle);
 
         //TODO what to do with drawRotatedRect?
-        dpc::drawRotatedRectOld(crossMask, rect1, cv::Scalar(0.0));
-        dpc::drawRotatedRectOld(crossMask, rect2, cv::Scalar(0.0));
+        dpc::drawRotatedRectMat(crossMask, rect1, cv::Scalar(0.0));
+        dpc::drawRotatedRectMat(crossMask, rect2, cv::Scalar(0.0));
 
         double circleWidth = cv::min(pupil.rows,pupil.cols);
 
@@ -308,13 +308,13 @@ void SourceComputeOld(cv::Mat* sourceRgb, double RotAngle, double NA_illum, cons
     }
 }
 
-void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const double Lambda[3], double ps, double crossOffsetH, double crossOffsetV, const double quadrantCoefficents[][3]) {
-
-    for (int cIdx=0; cIdx<3; cIdx++) {
+void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const double Lambda[4], double ps, double crossOffsetH, double crossOffsetV, const double quadrantCoefficents[][4]) {
+    for (int cIdx=0; cIdx < 4; cIdx++) {
 
         // Generate illumination pupil
         cvc::cMat pupil = cvc::zeros(sourceRgb[0].rows(),sourceRgb[0].cols());     //,sourceRgb[0].type());
         PupilCompute(pupil,NA_illum, Lambda[cIdx], ps);
+//        showImg(pupil.real.getMat(ACCESS_READ), "Pupil", -1);
 
         // Get real part of pupil
         // cv::Mat pupilSplit[] = {cv::Mat::zeros(pupil.rows, pupil.cols, CV_64FC1),
@@ -322,7 +322,8 @@ void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const
         //
         // cv::split(pupil,pupilSplit);
 
-        // Tempory 3-channel array
+        //Find the intersection of the sources to make uniform brightness
+        cvc::cMat intersect = pupil.copy();
 
         // center point
         cv::Point center(cvRound(pupil.cols() / 2), cvRound(pupil.rows() / 2));
@@ -330,73 +331,77 @@ void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const
         // generate center cross matrix
         cvc::cMat crossMask = cvc::ones(pupil.rows(), pupil.cols());     //,CV_64FC1);
 
+        //the program is registering that the crossmask has unity color, but not picking it up for some reason
+
+//        std::cout << "CrossMask Element at 0 0 is: " << crossMask.get(0, 0)->real() << std::endl;
+//        std::cout << "pupil element at 0 0 is: " << pupil.get(0, 0)->real() << std::endl;
+//        std::cout << "pupil element at center is: " << pupil.get(center.x, center.y)->real() << std::endl;
+//        showImg(crossMask.real.getMat(ACCESS_READ), "CrossMask before", -1);
+
         // Cross widths in pixels
         double crossH = (crossOffsetV*ps*pupil.rows())/(2*Lambda[cIdx]); // converts NA to pixels
         double crossV = (crossOffsetH*ps*pupil.cols())/(2*Lambda[cIdx]); // converts NA to pixels
+
+//        crossH = 10; crossV = 10
+//        std::cout << "center is: " << center << std::endl;
+//        std::cout << "crossH is: " << crossH << std::endl;
+//        std::cout << "crossV is: " << crossV << std::endl;
 
         // Horizontal
         //Point pt1(0,center.y-crossV);
         //Point pt2(pupil.cols,center.y+crossV);
         double rectWidth = sqrt(pupil.cols() * pupil.cols() + pupil.rows() * pupil.rows());
+//        std::cout << "Rect width is: " << rectWidth << std::endl;
         cv::RotatedRect rect1(center, cv::Size(2 * crossH, rectWidth), RotAngle);
-        cv::RotatedRect rect2(center, cv::Size(rectWidth, 2 * crossV), RotAngle);
+        cv::RotatedRect rect2(center, cv::Size(rectWidth, 2 * crossV), RotAngle + 90);
 
         dpc::drawRotatedRect(crossMask, rect1, cv::Scalar(0.0));
         dpc::drawRotatedRect(crossMask, rect2, cv::Scalar(0.0));
 
+//        showImg(crossMask.real.getMat(ACCESS_READ), "CrossMask", -1);
+
+        //crossmask is the plus that separates the quadrants from one another
+        // I think by sending it cv::Scalar(0) it makes the interior of the
+        // cross black-- but, what about the exterior? Assuming we multiply it,
+        // would need the exterior to be unity
+
         double circleWidth = cv::min(pupil.rows(),pupil.cols());
-
-        /*
-
-        cvc::cMat q = cvc::zeros(pupil.rows(), pupil.cols());
-        cvc::cMat q_temp = cvc::zeros(pupil.rows(), pupil.cols());
-
-        // Generate 90 degree sources (rotate each quadrant)
-        cvc::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
-            cvRound(circleWidth / 2)), RotAngle, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp * quadrantCoefficents[0][cIdx];
-        q = q + q_temp;
-
-        cvc::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
-        cvRound(circleWidth / 2)), RotAngle+90, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp * quadrantCoefficents[1][cIdx];
-        q = q + q_temp;
-
-        cvc::ellipse(q_temp, center, cv::Size(cvRound(circleWidth/ 2),
-        cvRound(circleWidth / 2)), RotAngle+180, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp * quadrantCoefficents[2][cIdx];
-        q = q + q_temp;
-
-        cvc::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
-        cvRound(circleWidth / 2)), RotAngle+270, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp*quadrantCoefficents[3][cIdx];
-        q = q + q_temp;
-
-        */
 
         Mat q = Mat::zeros(pupil.rows(), pupil.cols(), CV_64FC1);
         Mat q_temp = Mat::zeros(pupil.rows(), pupil.cols(), CV_64FC1);
 
         // Generate 90 degree sources (rotate each quadrant)
-        cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
-        cvRound(circleWidth / 2)), RotAngle, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp*quadrantCoefficents[0][cIdx];
+        cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2), cvRound(circleWidth / 2)),
+            RotAngle, -180, -90, cv::Scalar(1.0), -1, 8, 0);
+        q_temp = q_temp*quadrantCoefficents[cIdx][0];
         q = q + q_temp;
+        if (quadrantCoefficents[cIdx][0] == 1) {
+            intersect *= q_temp;
+        }
 
         cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
         cvRound(circleWidth / 2)), RotAngle+90, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp*quadrantCoefficents[1][cIdx];
+        q_temp = q_temp * quadrantCoefficents[cIdx][1];
         q = q + q_temp;
+        if (quadrantCoefficents[cIdx][1] == 1) {
+            intersect *= q_temp;
+        }
 
         cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth/ 2),
         cvRound(circleWidth / 2)), RotAngle+180, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp*quadrantCoefficents[2][cIdx];
+        q_temp = q_temp*quadrantCoefficents[cIdx][2];
         q = q + q_temp;
+        if (quadrantCoefficents[cIdx][2] == 1) {
+            intersect *= q_temp;
+        }
 
         cv::ellipse(q_temp, center, cv::Size(cvRound(circleWidth / 2),
         cvRound(circleWidth / 2)), RotAngle+270, -180, -90, cv::Scalar(1.0), -1, 8, 0);
-        q_temp = q_temp*quadrantCoefficents[3][cIdx];
+        q_temp = q_temp*quadrantCoefficents[cIdx][3];
         q = q + q_temp;
+        if (quadrantCoefficents[cIdx][3] == 1) {
+            intersect *= q_temp;
+        }
 
         // Mat complexPlanes[2] = {cv::Mat(q.rows,q.cols,q.type()),
         //                         cv::Mat(q.rows,q.cols,q.type())};
@@ -411,9 +416,17 @@ void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const
 //        complexPlanes[0] = crossMask.mul(q).mul(pupilSplit[0]);
 //        complexPlanes[1] = cv::Mat::zeros(crossMask.rows,crossMask.cols,crossMask.type());
 //        complexPlanes.real = crossMask.mul(q).mul(pupilSplit[0]);
-        complexPlanes = crossMask * q * pupil;
-//        complexPlanes[1] = cvc::zeros();
-//        cv::merge(complexPlanes,2,sourceRgb[cIdx]);
+
+//        complexPlanes = crossMask * q * pupil;
+        //TODO fix the crossmask. Only want a small region to be black not whole thing
+        complexPlanes = q * pupil;
+
+        //Make brightness of the pupil uniform
+        complexPlanes -= intersect;
+
+        //Create the cross separating each quadrant in the pupil
+//        complexPlanes *= crossmask;
+
         sourceRgb[cIdx] = complexPlanes;
     }
 }
@@ -461,8 +474,8 @@ void HrHiComputeOld(cv::Mat& Hi, cv::Mat& Hr, cv::Mat& Source, cv::Mat& Pupil , 
 	complexScalarMultiply(ii,Mb_temp,Hi);
 }
 
-void HrHiCompute(cvc::cMat& Hi, cvc::cMat& Hr, cvc::cMat& Source, cvc::cMat& Pupil , double Lambda){
-
+//void HrHiCompute(cvc::cMat& Hi, cvc::cMat& Hr, cvc::cMat& Source, cvc::cMat& Pupil , double Lambda){
+void HrHiCompute(cvc::cMat& H, cvc::cMat& Source, cvc::cMat& Pupil, double Lambda) {
 
 	//Compute DC term
 	cvc::cMat Ma_temp = cvc::zeros(Source.rows(), Source.cols());
@@ -498,16 +511,19 @@ void HrHiCompute(cvc::cMat& Hi, cvc::cMat& Hr, cvc::cMat& Source, cvc::cMat& Pup
 	cvc::ifftshift(Ma_temp,Mb_temp);
 	Ma_temp = cvc::fft2(Mb_temp);
 //	complexMultiply(Ma_temp,Mc_temp,Mb_temp);
-    Mb_temp = Ma_temp * Mc_temp;
+    FPS_cFP_RI = Ma_temp * Mc_temp;
 //	cv::split(Mb_temp, FPS_cFP_RI);
-    FPS_cFP_RI = Mb_temp;
+//    FPS_cFP_RI = Mb_temp;
 
 	//Compute Hr
 //    H_iterm[0] = 2*FPS_cFP_RI[0]/DC;
 //    H_iterm.real = (2 * FPS_cFP_RI.real() / DC).real();
-    H_iterm = 2 * FPS_cFP_RI / DC;
+    H_iterm.real = (2 * FPS_cFP_RI / DC).real;
 //	cv::merge(H_iterm,2,Ma_temp);
-	Hr = cvc::ifft2(H_iterm);
+    cvc::cMat temp = cvc::ifft2(H_iterm);
+
+    //Hr = temp;
+	H.real = temp.real;
 
 	//Compute Hi
 //	H_iterm[0] = H_iterm[1];
@@ -516,8 +532,11 @@ void HrHiCompute(cvc::cMat& Hi, cvc::cMat& Hr, cvc::cMat& Source, cvc::cMat& Pup
 	// ifft2(Ma_temp,Mb_temp);
 	// complexScalarMultiply(ii,Mb_temp,Hi);
     H_iterm.real = H_iterm.imag;
-    Mb_temp = cvc::ifft2(Ma_temp);
-    Hi = (* new std::complex<double>(0, 1)) * Mb_temp;
+    H_iterm.imag = (2 * FPS_cFP_RI / DC / Lambda).imag;
+    Mb_temp = cvc::ifft2(H_iterm);
+
+    //Hi = Mb_temp;
+    H.imag = Mb_temp.imag;
 }
 
 void GenerateAOld(cv::Mat* output, cv::Mat* HrList, cv::Mat* HiList, std::complex<double> Regularization){
@@ -566,7 +585,9 @@ void GenerateAOld(cv::Mat* output, cv::Mat* HrList, cv::Mat* HiList, std::comple
 
 }
 
-void GenerateA(cvc::cMat* output, cvc::cMat* HrList, cvc::cMat* HiList, std::complex<double> Regularization){
+//void GenerateA(cvc::cMat* output, cvc::cMat* HrList, cvc::cMat* HiList, std::complex<double> Regularization){
+void GenerateA(cvc::cMat* output, cvc::cMat* HList, std::complex<double> Regularization) {
+//    cv::Size size = HrList[0].size();
     if (output[0].isEmpty()) {
         output[0] = cvc::zeros(HrList[0].rows(), HrList[0].cols());
 		output[1] = cvc::zeros(HrList[0].rows(), HrList[0].cols());
@@ -584,9 +605,9 @@ void GenerateA(cvc::cMat* output, cvc::cMat* HrList, cvc::cMat* HiList, std::com
     cvc::cMat Mb_temp = cvc::zeros(output[0].rows(), output[0].cols());
     cvc::cMat S_temp = cvc::zeros(output[0].rows(), output[0].cols());
 
-	for(int16_t cIdx=0; cIdx<3; cIdx++) {
+	for(int16_t cIdx = 0; cIdx < 4; cIdx++) {
 //		complexAbs(HrList[cIdx], Ma_temp);
-        Ma_temp = cvc::abs(HrList[cIdx]);
+        Ma_temp = cvc::abs(HrList[cIdx]);       //here is one of the points I was saying uses a complex fn
 //		complexMultiply(Ma_temp, Ma_temp, Mb_temp);
         Mb_temp = Ma_temp * Ma_temp;
 		output[0] = output[0] + Mb_temp;
@@ -690,7 +711,8 @@ void ColorDeconvolution_L2Old(cv::Mat& output, cv::Mat* Intensity, cv::Mat* A, c
 
 }
 
-void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HrList, cvc::cMat* HiList, double Lambda) {
+//void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HrList, cvc::cMat* HiList, double Lambda) {
+void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HList, double Lambda) {
 
 	cvc::cMat Ma_temp = cvc::zeros(output.rows(),output.cols());
 	cvc::cMat Mb_temp = cvc::zeros(output.rows(),output.cols());

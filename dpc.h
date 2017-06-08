@@ -26,7 +26,7 @@ namespace dpc {
     void showImgC(cv::Mat ImgC, std::string windowTitle);
     void HrHiComputeOld(cv::Mat& Hi, cv::Mat& Hr, cv::Mat& Source, cv::Mat& Pupil , double Lambda);
 
-    inline void drawRotatedRectOld(cv::Mat& image, cv::RotatedRect rRect, cv::Scalar color ) {
+    inline void drawRotatedRectMat(cv::Mat& image, cv::RotatedRect rRect, cv::Scalar color ) {
 
         cv::Point2f vertices2f[4];
         cv::Point vertices[4];
@@ -46,7 +46,8 @@ namespace dpc {
         //     vertices[i] = vertices2f[i];
         // }
         cv::Mat real = cv::Mat::zeros(image.size(), image.type());
-        cv::fillConvexPoly(real, 4, color);
+//        cv::fillConvexPoly(real, 4, color);
+        dpc::drawRotatedRectMat(real, rRect, color);
         image.real = real.getUMat(cv::ACCESS_RW);
 //        cvc::fillConvexPoly(image, vertices,4,color);
     }
