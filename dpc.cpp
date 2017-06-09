@@ -60,7 +60,9 @@ cMat dpc::range(double start, double end, double interval) {
  * @param ps                        pixel size
  * @param lambdaList                list of lambda values for regularization
  *
-cMat dpc::genSrcAngular(cMat srcCoeffs, double rotationAngle, std::vector<int> imSize, double na, double ps, std::vector<double> lambdaList) {
+cMat dpc::genSrcAngular(cMat srcCoeffs, double rotationAngle, std::vector<int> imSize,
+        double na, double ps, std::vector<double> lambdaList) {
+
     int sections = sizeof(srcCoeffs);
     double dTheta = 360 / sections;
     cMat angles = dpc::range(rotationAngle, 360 + rotationAngle, dTheta);
@@ -232,7 +234,8 @@ void PupilCompute(cvc::cMat& output, double NA, double Lambda, double ps){
     //automatically since output is a cMat&?
 }
 
-void SourceComputeOld(cv::Mat* sourceRgb, double RotAngle, double NA_illum, const double Lambda[3], double ps, double crossOffsetH, double crossOffsetV, const double quadrantCoefficents[][3]) {
+void SourceComputeOld(cv::Mat* sourceRgb, double RotAngle, double NA_illum, const double Lambda[3], double ps,
+    double crossOffsetH, double crossOffsetV, const double quadrantCoefficents[][3]) {
 
     for (int cIdx=0; cIdx<3; cIdx++) {
 
@@ -308,7 +311,9 @@ void SourceComputeOld(cv::Mat* sourceRgb, double RotAngle, double NA_illum, cons
     }
 }
 
-void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const double Lambda[4], double ps, double crossOffsetH, double crossOffsetV, const double quadrantCoefficents[][4]) {
+void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const double Lambda[4],
+        double ps, double crossOffsetH, double crossOffsetV, const double quadrantCoefficents[][4]) {
+
     for (int cIdx=0; cIdx < 4; cIdx++) {
 
         // Generate illumination pupil
@@ -474,8 +479,8 @@ void HrHiComputeOld(cv::Mat& Hi, cv::Mat& Hr, cv::Mat& Source, cv::Mat& Pupil , 
 	complexScalarMultiply(ii,Mb_temp,Hi);
 }
 
-//void HrHiCompute(cvc::cMat& Hi, cvc::cMat& Hr, cvc::cMat& Source, cvc::cMat& Pupil , double Lambda){
-void HrHiCompute(cvc::cMat& H, cvc::cMat& Source, cvc::cMat& Pupil, double Lambda) {
+void HaHpCompute(cvc::cMat& Ha, cvc::cMat& Hp, cvc::cMat& Source, cvc::cMat& Pupil , double Lambda){
+//void HrHiCompute(cvc::cMat& H, cvc::cMat& Source, cvc::cMat& Pupil, double Lambda) {
 
 	//Compute DC term
 	cvc::cMat Ma_temp = cvc::zeros(Source.rows(), Source.cols());
@@ -522,8 +527,8 @@ void HrHiCompute(cvc::cMat& H, cvc::cMat& Source, cvc::cMat& Pupil, double Lambd
 //	cv::merge(H_iterm,2,Ma_temp);
     cvc::cMat temp = cvc::ifft2(H_iterm);
 
-    //Hr = temp;
-	H.real = temp.real;
+    Ha = temp;
+	//H.real = temp.real;
 
 	//Compute Hi
 //	H_iterm[0] = H_iterm[1];
@@ -535,8 +540,8 @@ void HrHiCompute(cvc::cMat& H, cvc::cMat& Source, cvc::cMat& Pupil, double Lambd
     H_iterm.imag = (2 * FPS_cFP_RI / DC / Lambda).imag;
     Mb_temp = cvc::ifft2(H_iterm);
 
-    //Hi = Mb_temp;
-    H.imag = Mb_temp.imag;
+    Hp = Mb_temp;       //TODO make sure the reference is assigned not the value
+    //H.imag = Mb_temp.imag;
 }
 
 void GenerateAOld(cv::Mat* output, cv::Mat* HrList, cv::Mat* HiList, std::complex<double> Regularization){
@@ -585,15 +590,15 @@ void GenerateAOld(cv::Mat* output, cv::Mat* HrList, cv::Mat* HiList, std::comple
 
 }
 
-//void GenerateA(cvc::cMat* output, cvc::cMat* HrList, cvc::cMat* HiList, std::complex<double> Regularization){
-void GenerateA(cvc::cMat* output, cvc::cMat* HList, std::complex<double> Regularization) {
-//    cv::Size size = HrList[0].size();
+void GenerateA(cvc::cMat* output, cvc::cMat* HaList, cvc::cMat* HpList, std::complex<double> Regularization){
+//void GenerateA(cvc::cMat* output, cvc::cMat* HList, std::complex<double> Regularization) {
+    cv::Size size = HaList[0].size();
     if (output[0].isEmpty()) {
-        output[0] = cvc::zeros(HrList[0].rows(), HrList[0].cols());
-		output[1] = cvc::zeros(HrList[0].rows(), HrList[0].cols());
-   		output[2] = cvc::zeros(HrList[0].rows(), HrList[0].cols());
-		output[3] = cvc::zeros(HrList[0].rows(), HrList[0].cols());
-		output[4] = cvc::zeros(HrList[0].rows(), HrList[0].cols());
+        output[0] = cvc::zeros(size);
+		output[1] = cvc::zeros(size);
+   		output[2] = cvc::zeros(size);
+		output[3] = cvc::zeros(size);
+		output[4] = cvc::zeros(size);
      }
 
 // 	cv::Mat Ma_temp = cv::Mat::zeros(output[0].rows,output[0].cols,CV_64FC2);
@@ -606,26 +611,27 @@ void GenerateA(cvc::cMat* output, cvc::cMat* HList, std::complex<double> Regular
     cvc::cMat S_temp = cvc::zeros(output[0].rows(), output[0].cols());
 
 	for(int16_t cIdx = 0; cIdx < 4; cIdx++) {
+
 //		complexAbs(HrList[cIdx], Ma_temp);
-        Ma_temp = cvc::abs(HrList[cIdx]);       //here is one of the points I was saying uses a complex fn
+        Ma_temp = cvc::abs(HaList[cIdx]);
 //		complexMultiply(Ma_temp, Ma_temp, Mb_temp);
         Mb_temp = Ma_temp * Ma_temp;
 		output[0] = output[0] + Mb_temp;
 
-		Ma_temp = cvc::conj(HrList[cIdx]);
+		Ma_temp = cvc::conj(HaList[cIdx]);
 //        complexMultiply(HiList[cIdx], Ma_temp, Mb_temp);
-		Mb_temp = HiList[cIdx] * Ma_temp;
+		Mb_temp = HpList[cIdx] * Ma_temp;
 		output[1] = output[1] + Mb_temp;
 
 		// complexConj(HiList[cIdx], Ma_temp);
 		// complexMultiply(HrList[cIdx], Ma_temp, Mb_temp);
-        Ma_temp = cvc::conj(HiList[cIdx]);
-        Mb_temp = HrList[cIdx] * Ma_temp;
+        Ma_temp = cvc::conj(HpList[cIdx]);
+        Mb_temp = HaList[cIdx] * Ma_temp;
 		output[2] = output[2] + Mb_temp;
 
 		// complexAbs(HiList[cIdx], Ma_temp);
 		// complexMultiply(Ma_temp, Ma_temp, Mb_temp);
-        Ma_temp = cvc::abs(HiList[cIdx]);
+        Ma_temp = cvc::abs(HpList[cIdx]);
         Mb_temp = Ma_temp * Ma_temp;
 		output[3] = output[3] + Mb_temp;
 	}
@@ -711,22 +717,24 @@ void ColorDeconvolution_L2Old(cv::Mat& output, cv::Mat* Intensity, cv::Mat* A, c
 
 }
 
-//void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HrList, cvc::cMat* HiList, double Lambda) {
-void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HList, double Lambda) {
+void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HaList, cvc::cMat* HpList, double Lambda) {
+//void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HList, double Lambda) {
 
-	cvc::cMat Ma_temp = cvc::zeros(output.rows(),output.cols());
-	cvc::cMat Mb_temp = cvc::zeros(output.rows(),output.cols());
-	cvc::cMat Mc_temp = cvc::zeros(output.rows(),output.cols());
+    cv::Size size = output.size();
 
-	cvc::cMat I1 = cvc::zeros(output.rows(), output.cols());
-	cvc::cMat I2 = cvc::zeros(output.rows(), output.cols());
+	cvc::cMat Ma_temp = cvc::zeros(size);
+	cvc::cMat Mb_temp = cvc::zeros(size);
+	cvc::cMat Mc_temp = cvc::zeros(size);
+
+	cvc::cMat I1 = cvc::zeros(size);
+	cvc::cMat I2 = cvc::zeros(size);
 
 //	cv::Mat S_temp[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
 //	                     cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
 //	cv::Mat outputS[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
 //				          cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
 
-    cvc::cMat S_temp = cvc::zeros(output.rows(), output.cols());
+    cvc::cMat S_temp = cvc::zeros(size);
 //    cvc::cMat outputS = cvc::zeros(output.rows(), output.cols());
 
 	for(int16_t cIdx=0; cIdx<3; cIdx++) {
@@ -734,13 +742,13 @@ void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A
 
         Mc_temp = S_temp;
         Ma_temp = cvc::fft2(Mc_temp);
-        Mb_temp = cvc::conj(HrList[cIdx]);
+        Mb_temp = cvc::conj(HaList[cIdx]);
         Mc_temp = Ma_temp * Mc_temp;
         I1 = I1 + Mc_temp;
 
         Mc_temp = S_temp;
         Ma_temp = fft2(Mc_temp);
-        Mb_temp = cvc::conj(HiList[cIdx]);
+        Mb_temp = cvc::conj(HpList[cIdx]);
         Mc_temp = Ma_temp * Mb_temp;
         I2 = I2 + Mc_temp;
 	}

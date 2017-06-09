@@ -345,14 +345,12 @@ void testMain() {
         return;
     }
 
-    showImgStack(mats, nImgs);
     cv::Size size = mats[0].size();
-
-    //TODO see if this works
     cvc::cMat* images = new cvc::cMat[nImgs];
     for (int i = 0; i < nImgs; i++) {
         images[i] = *(new cvc::cMat(mats[i]));
     }
+    showCMatStack(images, nImgs, "Image ");
 
     double systemNa = common.get("objectiveNa", 0).asFloat();      //TODO systemNa = objectiveNa?
     double illumNa = common.get("illuminationNa", 0).asFloat();
@@ -363,17 +361,12 @@ void testMain() {
     std::cout << "System Magnification is: " << systemMag << std::endl;
     std::cout << "Image size is: " << size << std::endl;
 
-    // TODO what are these two?
     double sourceCenterWidthHorz = common.get("sourceCenterWidthHorz", 0).asFloat();
     double sourceCenterWidthVert = common.get("sourceCenterWidthVert", 0).asFloat();
 
     std::cout << "Source Center Horizontal: " << sourceCenterWidthHorz << std::endl;
     std::cout << "Source Center Vertical: " << sourceCenterWidthVert << std::endl;
 
-    // TODO how to turn the Json::Value into an array?
-    // ex we turn it to a double with .asDouble(), so how to go to array?
-
-//    double* sourceRotation = dpc.get("sourceRotation",0).asDouble();
     Json::Value sourceRotationLst = dpc.get("sourceRotationList", 0);
     double RotAngle = dpc.get("sourceRotation", 0).asFloat();       //TODO 0 or 90?
 
@@ -497,26 +490,16 @@ void testMain() {
     ptr = Source;
     showCMatStack(ptr, 4, "Source ");
 
-	// Generate Transfer Function
+	// Generate Transfer Functions
 
-    // TODO HrList and HiList or just HList?
-    // currently just doing HList, but can easily switch to HrList and HiList if needed.
+    cvc::cMat HaList[] = {
+        cvc::zeros(size),
+        cvc::zeros(size),
+        cvc::zeros(size),
+        cvc::zeros(size)
+    };
 
-    // cvc::cMat HrList[] = {
-    //     cvc::zeros(size),
-    //     cvc::zeros(size),
-    //     cvc::zeros(size),
-    //     cvc::zeros(size)
-    // };
-    //
-    // cvc::cMat HiList[] = {
-    //     cvc::zeros(size),
-    //     cvc::zeros(size),
-    //     cvc::zeros(size),
-    //     cvc::zeros(size)
-    // };
-
-    cvc::cMat HList[] = {
+    cvc::cMat HpList[] = {
         cvc::zeros(size),
         cvc::zeros(size),
         cvc::zeros(size),
@@ -531,10 +514,13 @@ void testMain() {
         // showCMatStack(ptr, 1);
 
         //HrHiCompute(HrList[sIdx], HiList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
-        HrHiCompute(HList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
+        HaHpCompute(HaList[sIdx], HpList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
 	}
-    ptr = HList;
-    showCMatStack(ptr, 4, "Transfer Function ");
+    ptr = HaList;
+//    showCMatStack(ptr, 4, "Amplitude Transfer Function ");
+
+    ptr = HpList;
+//    showCMatStack(ptr, 4, "Phase Transfer Function");
 
     // Deconvolution Process
 
@@ -543,11 +529,11 @@ void testMain() {
 
 	cvc::cMat A[5];
 
-//    GenerateA(A, HrList, HiList, Regularization);
-    GenerateA(A, HList, Regularization);
+    //TODO breaks inside GenerateA-- find where
+    GenerateA(A, HaList, HpList, Regularization);
 
 //	ColorDeconvolution_L2(CDPC_Results, imgC, A, HrList, HiList, lambda[1]);
-    ColorDeconvolution_L2(CDPC_Results, imgC, A, HList, lambda[1]);
+    ColorDeconvolution_L2(CDPC_Results, images, A, HaList, HpList, lambda[1]);
 //	showComplexImg(CDPC_Results,SHOW_COMPLEX_REAL,"Recovered Amplitude",-1);
 //	showComplexImg(CDPC_Results,SHOW_COMPLEX_IMAGINARY,"Recovered Phase", cv::COLORMAP_JET);
     showImg(CDPC_Results.real.getMat(ACCESS_READ), "Recovered Amplitude", -1);
