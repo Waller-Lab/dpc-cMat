@@ -520,27 +520,18 @@ void HaHpCompute(cvc::cMat& Ha, cvc::cMat& Hp, cvc::cMat& Source, cvc::cMat& Pup
 //	cv::split(Mb_temp, FPS_cFP_RI);
 //    FPS_cFP_RI = Mb_temp;
 
-	//Compute Hr
-//    H_iterm[0] = 2*FPS_cFP_RI[0]/DC;
-//    H_iterm.real = (2 * FPS_cFP_RI.real() / DC).real();
+	//Compute Ha
     H_iterm.real = (2 * FPS_cFP_RI / DC).real;
-//	cv::merge(H_iterm,2,Ma_temp);
     cvc::cMat temp = cvc::ifft2(H_iterm);
 
     Ha = temp;
-	//H.real = temp.real;
 
-	//Compute Hi
-//	H_iterm[0] = H_iterm[1];
-	// H_iterm[1] = 2*FPS_cFP_RI[1]/DC/Lambda;
-	// cv::merge(H_iterm,2,Ma_temp);
-	// ifft2(Ma_temp,Mb_temp);
-	// complexScalarMultiply(ii,Mb_temp,Hi);
+	//Compute Hp
     H_iterm.real = H_iterm.imag;
     H_iterm.imag = (2 * FPS_cFP_RI / DC / Lambda).imag;
     Mb_temp = cvc::ifft2(H_iterm);
 
-    Hp = Mb_temp;       //TODO make sure the reference is assigned not the value
+    Hp = *(new std::complex<double>(0,1)) * Mb_temp;       //TODO make sure the reference is assigned not the value
     //H.imag = Mb_temp.imag;
 }
 
@@ -703,6 +694,7 @@ void ColorDeconvolution_L2Old(cv::Mat& output, cv::Mat* Intensity, cv::Mat* A, c
 	complexDivide((Mb_temp-Ma_temp), A[4], Mc_temp); //Mc_temp now contains f{phase}
 	ifft2(Mc_temp, Ma_temp); //Ma_temp has phase
 	cv::split(Ma_temp, S_temp); //split into the 3 color channels
+//    showImg(S_temp[0], "S_temp", -1);
 	exp(S_temp[0], outputS[0]); //???
 
 
@@ -756,8 +748,24 @@ void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A
 //    Ma_temp = I1 * A[3];
 //    Mb_temp = I2 * A[1];
 //    Mc_temp = (Mb_temp - Ma_temp) / A[4];
+
+    //jk that didn't work
     Mc_temp = (I2 * A[1] - I1 * A[3]) / A[4];
+    // Mc_temp = I2 * A[1] - I1 * A[3];
+    // cvc::cMat t = Mc_temp / A[4];
+    // // keep imag part, but divide real part
+    // Mc_temp.real = t.real;
+
+    //TODO A[4].imag is around 0, so it may blow up and that might be what's causing
+    // the scaling problems. Try only dividing the real part of Mc_temp.
+
     S_temp = cvc::ifft2(Mc_temp);
+    cv::Mat temp = cv::Mat::zeros(size, CV_64FC2);
+    exp(S_temp.real.getMat(cv::ACCESS_RW), temp);
+    output.real = temp.getUMat(cv::ACCESS_RW);
+    // exponentiating it makes it wonky. Check out scaling
+    // when I show S_temp on the old one, it has more contrast
+    showImg(S_temp.real.getMat(cv::ACCESS_RW), "S_temp", -1);
     output.real = cvc::exp(S_temp).real;
 
 //    Ma_temp = I2 * A[0];

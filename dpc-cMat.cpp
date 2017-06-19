@@ -150,38 +150,53 @@ void testRange() {
     std::cout << "Range from 400 to 0 w/ step size 20 is:" << rng2 << std::endl;
 }
 
-void oldMain(std::string jsonFileName, std::string imageFileName) {
+void oldMain() {
 
+    std::string json = "testDataset_dpc.json";
     // Parse JSON file
     Json::Value calibrationJson;
     Json::Reader reader;
-    ifstream jsonFile(jsonFileName);
+    ifstream jsonFile (json);
     reader.parse(jsonFile, calibrationJson);
 
-    double systemNA = calibrationJson.get("defaultNA",0).asFloat();
-    double systemMag = calibrationJson.get("defaultMag",0).asFloat();
+    Json::Value common = calibrationJson.get("common", 0);
+    Json::Value dpc = calibrationJson.get("dpc", 0);
+
+    std::string imageFileName = common.get("imgStackFileName", 0).asString();
+    std::cout << "Image File Name: " << imageFileName << std::endl;
+
+//    double systemNA = calibrationJson.get("defaultNA",0).asFloat();
+    double systemNA = common.get("objectiveNa",0).asFloat();
+    double systemMag = common.get("systemMag",0).asFloat();
 
     // Parse calibration parameters
-    double sourceCenterWidthHorz = calibrationJson.get("sourceCenterWidthHorz",0).asFloat();
-    double sourceCenterWidthVert = calibrationJson.get("sourceCenterWidthVert",0).asFloat();
+    double sourceCenterWidthHorz = common.get("sourceCenterWidthHorz",0).asFloat();
+    double sourceCenterWidthVert = common.get("sourceCenterWidthVert",0).asFloat();
     //double lambda = calibrationJson.get("lambda",0).asFloat();
-    double sourceRotation = calibrationJson.get("sourceRotation",0).asFloat();
-    double ps = calibrationJson.get("pixelSize",0).asFloat();
+    double sourceRotation = 45.0;
+    double ps = common.get("pixelSize",0).asFloat();
     double ps_eff = ps/systemMag;
 
-    //errors somewhere between here
+    Json::Value lambdas = common.get("wavelengthList", 0);
+    double lambda [3];
 
-	double lambda[3];
-	lambda[0] = calibrationJson.get("lambda",0)[0].get("r",0).asDouble();
-	lambda[1] = calibrationJson.get("lambda",0)[1].get("g",0).asDouble();
-	lambda[2] = calibrationJson.get("lambda",0)[2].get("b",0).asDouble();
+    lambda[0] = lambdas[0].asDouble();
+    lambda[1] = lambdas[1].asDouble();
+    lambda[2] = lambdas[2].asDouble();
+
     std::cout << lambda[0] <<std::endl;
     std::cout << lambda[1] <<std::endl;
     std::cout << lambda[2] <<std::endl;
 
-    //and here
+	// double lambda[3];
+	// lambda[0] = calibrationJson.get("lambda",0)[0].get("r",0).asDouble();
+	// lambda[1] = calibrationJson.get("lambda",0)[1].get("g",0).asDouble();
+	// lambda[2] = calibrationJson.get("lambda",0)[2].get("b",0).asDouble();
+    // std::cout << lambda[0] <<std::endl;
+    // std::cout << lambda[1] <<std::endl;
+    // std::cout << lambda[2] <<std::endl;
 
-    std::string sourceType = calibrationJson.get("sourceType","Quadrant").asString();
+    std::string sourceType = common.get("sourceType","Quadrant").asString();
     int8_t nSources;
     // Get source calibration coefficients
     if (sourceType == "Quadrant")
@@ -190,38 +205,69 @@ void oldMain(std::string jsonFileName, std::string imageFileName) {
         nSources = 3;
     std::cout<<"coeffs"<<std::endl;
     double sourceCoefficients[nSources][3];
-    Json::Value sCoeffs = calibrationJson.get("sourceCoefficients",0);
+    Json::Value sCoeffs = dpc.get("sourceCoefficients",0);
 
     for (int16_t sIdx=0; sIdx<nSources; sIdx++)
     {
-        sourceCoefficients[sIdx][0] = sCoeffs[sIdx][0].get("r",0).asDouble();
-        sourceCoefficients[sIdx][1] = sCoeffs[sIdx][1].get("g",0).asDouble();
-        sourceCoefficients[sIdx][2] = sCoeffs[sIdx][2].get("b",0).asDouble();
+
+        Json::Value temp = sCoeffs[sIdx];
+
+        sourceCoefficients[0][sIdx] = temp[0].asDouble();
+        sourceCoefficients[1][sIdx] = temp[1].asDouble();
+        sourceCoefficients[2][sIdx] = temp[2].asDouble();
+        sourceCoefficients[3][sIdx] = temp[3].asDouble();
+
+        // sourceCoefficients[sIdx][0] = sCoeffs[sIdx][0].get("r",0).asDouble();
+        // sourceCoefficients[sIdx][1] = sCoeffs[sIdx][1].get("g",0).asDouble();
+        // sourceCoefficients[sIdx][2] = sCoeffs[sIdx][2].get("b",0).asDouble();
 
         std::cout << sourceCoefficients[sIdx][0]<<std::endl;
         std::cout << sourceCoefficients[sIdx][1]<<std::endl;
         std::cout << sourceCoefficients[sIdx][2]<<std::endl;
     }
 
-	// Try to Load Image
-	Mat img = imread(imageFileName, -1); // Load image
+
+	// // Try to Load Image
+	// Mat img = imread(imageFileName, -1); // Load image
+    // if (img.rows ==0 || img.cols ==2)
+    // {
+    //     std::cout << "ERROR - Image does not exist!" <<std::endl;
+    // }
+    //
+	// img.convertTo(img,CV_64FC1);
+    // //Mat imgC = Mat::zeros(img.rows/2,img.cols/2,CV_64FC3);
+	// Mat imgC[] = {Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+	// 	          Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+	// 			  Mat::zeros(img.rows/2,img.cols/2,CV_64FC1)};
+    //
+	// Raw2Color(img, imgC);
+    //
+    // showImg(imgC[0],"rawimageR", -1);
+	// showImg(imgC[1],"rawimageG", -1);
+	// showImg(imgC[2],"rawimageB", -1);
+	// showImgC(imgC, "rawimageRGB", COLORIMAGE_REAL);
+
+    //load image
+    Mat img = imread(imageFileName, -1);
     if (img.rows ==0 || img.cols ==2)
     {
         std::cout << "ERROR - Image does not exist!" <<std::endl;
     }
 
-	img.convertTo(img,CV_64FC1);
+    img.convertTo(img,CV_64FC1);
     //Mat imgC = Mat::zeros(img.rows/2,img.cols/2,CV_64FC3);
-	Mat imgC[] = {Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
-		          Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
-				  Mat::zeros(img.rows/2,img.cols/2,CV_64FC1)};
+    Mat imgC[] = {
+        Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+        Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+        Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
+        Mat::zeros(img.rows/2,img.cols/2,CV_64FC1)
+    };
+    Raw2Color(img, imgC);
 
-	Raw2Color(img, imgC);
-
-    showImg(imgC[0],"rawimageR", -1);
-	showImg(imgC[1],"rawimageG", -1);
-	showImg(imgC[2],"rawimageB", -1);
-	showImgC(imgC, "rawimageRGB", COLORIMAGE_REAL);
+    showImg(imgC[0],"rawimage0", -1);
+    showImg(imgC[1],"rawimage1", -1);
+    showImg(imgC[2],"rawimage2", -1);
+    showImgC(imgC, "rawimageRGB", COLORIMAGE_REAL);
 
 
     // Generate Sources
@@ -289,6 +335,7 @@ void oldMain(std::string jsonFileName, std::string imageFileName) {
 }
 
 void testMain() {
+
     std::string json = "testDataset_dpc.json";
 
     //Parse json
@@ -408,32 +455,18 @@ void testMain() {
         nSources = 3;
     }
     //TODO use nSources or nImgs for counting to 4?
+
     // Get source calibration coefficients. Read down the columns
     std::cout<< "coeffs" <<std::endl;
     double sourceCoefficients[nSources][4];     //TODO make it [4] sized probs
     Json::Value sCoeffs = dpc.get("sourceCoefficients",0);
     for (int16_t sIdx=0; sIdx<nSources; sIdx++) {
-
         Json::Value temp = sCoeffs[sIdx];
-//        std::cout << temp.isArray() << std::endl;
-        // sourceCoefficients[sIdx][0] = temp[0].asDouble();
-        // sourceCoefficients[sIdx][1] = temp[1].asDouble();
-        // sourceCoefficients[sIdx][2] = temp[2].asDouble();
-        // sourceCoefficients[sIdx][3] = temp[3].asDouble();
 
         sourceCoefficients[0][sIdx] = temp[0].asDouble();
         sourceCoefficients[1][sIdx] = temp[1].asDouble();
         sourceCoefficients[2][sIdx] = temp[2].asDouble();
         sourceCoefficients[3][sIdx] = temp[3].asDouble();
-
-//        sourceCoefficients[sIdx][0] = sCoeffs[sIdx][0].get("r",0).asDouble();
-//        sourceCoefficients[sIdx][1] = sCoeffs[sIdx][1].get("g",0).asDouble();
-//        sourceCoefficients[sIdx][2] = sCoeffs[sIdx][2].get("b",0).asDouble();
-
-        // std::cout << sourceCoefficients[sIdx][0] << std::endl;
-        // std::cout << sourceCoefficients[sIdx][1] << std::endl;
-        // std::cout << sourceCoefficients[sIdx][2] << std::endl;
-        // std::cout << sourceCoefficients[sIdx][3] << std::endl;
     }
 
     for (int sIdx = 0; sIdx < nSources; sIdx++) {
@@ -443,40 +476,6 @@ void testMain() {
         std::cout << std::endl;
     }
 
-    // for each source (trial number) index first. Ie to get quadrants for first
-    // trial use sourceCoefficients[sIdx][i], where i is 1 if you want that quadrant
-    // on and 0 if you want that quadrant off
-
-//     //load image
-//     Mat img = imread(imageFileName, -1);
-//     if (img.rows ==0 || img.cols ==2)
-//     {
-//         std::cout << "ERROR - Image does not exist!" <<std::endl;
-//     }
-//
-//     img.convertTo(img,CV_64FC1);
-//     //Mat imgC = Mat::zeros(img.rows/2,img.cols/2,CV_64FC3);
-//     Mat imgC[] = {Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
-//                   Mat::zeros(img.rows/2,img.cols/2,CV_64FC1),
-//                   Mat::zeros(img.rows/2,img.cols/2,CV_64FC1)};
-//
-// //    Raw2Color(img, imgC);
-
-    // cv::UMat imgs [3];
-    // for (int i = 0; i < 3; i++) {
-    //     imgs[i] = imgC[i].getUMat(cv::ACCESS_RW);
-    // }
-    // cv::UMat * imPtr = imgs;
-    // //TODO why not showing images? it works for one with a Mat
-    // showImgStack(imPtr, 3);
-
-    // Generate Sources
-    // cvc::cMat Source[] = {
-    //         cvc::zeros(imgC[0].rows, imgC[0].cols),
-    //         cvc::zeros(imgC[0].rows, imgC[0].cols),
-    //         cvc::zeros(imgC[0].rows, imgC[0].cols)
-    // };
-    //TODO might have to add a fourth source
     cvc::cMat Source[] = {
             cvc::zeros(size),
             cvc::zeros(size),
@@ -517,10 +516,10 @@ void testMain() {
         HaHpCompute(HaList[sIdx], HpList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
 	}
     ptr = HaList;
-//    showCMatStack(ptr, 4, "Amplitude Transfer Function ");
+    showCMatStack(ptr, 4, "Amplitude Transfer Function ");
 
     ptr = HpList;
-//    showCMatStack(ptr, 4, "Phase Transfer Function");
+    showCMatStack(ptr, 4, "Phase Transfer Function ");
 
     // Deconvolution Process
 
@@ -529,8 +528,10 @@ void testMain() {
 
 	cvc::cMat A[5];
 
-    //TODO breaks inside GenerateA-- find where
     GenerateA(A, HaList, HpList, Regularization);
+
+//    ptr = &A[4];
+//    showCMatStack(ptr, 1, "A[4]");
 
 //	ColorDeconvolution_L2(CDPC_Results, imgC, A, HrList, HiList, lambda[1]);
     ColorDeconvolution_L2(CDPC_Results, images, A, HaList, HpList, lambda[1]);
@@ -541,12 +542,6 @@ void testMain() {
 
 }
 
-void runTests() {
-//    testRange();
-//    oldMain("testDataset_dpc.json", "testDataset_dpc.tif");
-    testMain();
-}
-
 int main(int argc, char** argv)
 {
     /*
@@ -555,6 +550,7 @@ int main(int argc, char** argv)
     uint16_t imgCount = loadImageStack(datasetFilename_dpc_tif, imgStack);
     showImgStack(imgStack, imgCount);
     */
-    //runTests();
+
     testMain();
+//    oldMain();
 }
