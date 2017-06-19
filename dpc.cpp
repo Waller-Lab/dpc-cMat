@@ -112,7 +112,7 @@ void PupilComputeOld(cv::Mat& output, double NA, double Lambda, double ps){
     merge(planes, 2, output);
 }
 
-void PupilCompute(cvc::cMat& output, double NA, double Lambda, double ps){
+void PupilCompute(cvc::cMat& output, double NA, double Lambda, double ps) {
 
     int16_t r = output.rows();
     int16_t c = output.cols();
@@ -418,7 +418,7 @@ void GenerateAOld(cv::Mat* output, cv::Mat* HrList, cv::Mat* HiList, std::comple
 
 }
 
-void GenerateA(cvc::cMat* output, cvc::cMat* HaList, cvc::cMat* HpList, std::complex<double> Regularization){
+void GenerateA(cvc::cMat* output, cvc::cMat* HaList, cvc::cMat* HpList, std::complex<double> Regularization) {
 
     cv::Size size = HaList[0].size();
     if (output[0].isEmpty()) {
