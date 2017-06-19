@@ -51,101 +51,6 @@ cMat dpc::range(double start, double end, double interval) {
     return rng;
 }
 
-/*
- * Generates an angular LED source array.
- *
- * @param srcCoeffs                 coefficients to generate the LED pattern
- * @param rotationAngle             constant offset for the LED array sections
- * @param imSize                    [m, n] where the image is an m x n matrix
- * @param ps                        pixel size
- * @param lambdaList                list of lambda values for regularization
- *
-cMat dpc::genSrcAngular(cMat srcCoeffs, double rotationAngle, std::vector<int> imSize,
-        double na, double ps, std::vector<double> lambdaList) {
-
-    int sections = sizeof(srcCoeffs);
-    double dTheta = 360 / sections;
-    cMat angles = dpc::range(rotationAngle, 360 + rotationAngle, dTheta);
-    int m = imSize[0];
-    int n = imSize[1];
-    double dfx = 1 / (n * ps);
-    double dfy = 1 / (m * ps);
-    cMat fx = dfx * dpc::range(- (n - (n % 2)) / 2, (n - (n % 2)) / 2 - (n % 2 == 1 ? 1 : 0), 1);
-    cMat fy = dfx * dpc::range(- (n - (n % 2)) / 2, (n - (n % 2)) / 2 - (n % 2 == 1 ? 1 : 0), 1);
-    std::vector<cMat> mesh = cvc::meshgrid(fx, fy);
-    cMat fxx = mesh[0];
-    cMat fyy = mesh[1];
-    cMat srcList = cvc::zeros(m, n);
-    //TODO;
-    return srcList;
-}
-
-*
- * Generates the transfer function for a source illumination.
- *
- * @param src                       source in real space
- * @param pupil                     pupil function in Fourier space
- * @param lambdaList                list of lambda values for regularization
- * @param shiftedOutput             true if should shift output to origin
- *
-std::vector<cMat> dpc::genHuHp(cMat src, cMat pupil, cMat lambdaList, bool shiftedOutput) {
-    double dc = (*cvc::sum(cvc::sum((cvc::abs(pupil)^2) * src, 0), 1).get(0, 0)).real();    //TODO axis?
-    cMat lambda3 = cvc::reshape(lambdaList, 1);
-
-    cMat sp = src * pupil;
-    cMat M = cvc::fft2(sp) * cvc::conj(cvc::fft2(pupil));
-
-    cMat re = cvc::real(M);
-    cMat Hu = 2 * (cvc::ifft2(re) / dc) / lambda3;
-    std::complex<double> i = * new std::complex<double>(0, 1.0);
-    cMat im = i * cvc::imag(M);
-    cMat temp = (2 * cvc::ifft2(im) / dc) / lambda3;
-    cMat Hp = i * temp;
-//    cMat Hp = eye * (2 * cvc::ifft2(im) / dc) / lambda3;
-
-    if (shiftedOutput) {
-        cMat uCopy = Hu.copy();
-        cMat pCopy = Hp.copy();
-        cvc::fftshift(uCopy, Hu);
-        cvc::fftshift(pCopy, Hp);
-    }
-    std::vector<cMat> result (2);
-    result[0] = Hu;
-    result[1] = Hp;
-    return result;
-}
-
-*
- * Generates a linear measurement from complex field at image plane.
- *
- * @param field                     complex illumination field
- * @param pupil                     pupil function in Fourier space
- * @param Hu                        amplitude transfer function
- * @param Hp                        phase transfer function
- * @param lambdaList                lambda values for regularization
- *
-cMat dpc::genMeasurementsLinear(cMat field, cMat pupil, cMat Hu, cMat Hp, std::vector<double> lambdaList) {
-    cMat intensity = zeros(pupil.size());
-    for (int cIdx = 0; cIdx < lambdaList.size(); cIdx++) {
-
-    }
-
-    return intensity;
-}
-
-*/
-
-/*******************************************************************************
- ********************************** CPP FILE ***********************************
- ******************************************************************************/
-
-/*
- * TODO
- * Figure out which Mats should be converted to cMats
- * Mat[] and merge/split
- * cv::ellipse and etc.
- */
-
 //IntensityC: probaly
 void Raw2Color(const cv::Mat& IntensityC, cv::Mat* output){
     if (output[0].empty()){
@@ -181,6 +86,7 @@ void Raw2Color(const cv::Mat& IntensityC, cv::Mat* output){
     output[2] = (output[2]-meanB)/meanB;
 }
 
+// take I_0 / mean(I_0) - 1.0 to preprocess image
 void Normalize(cvc::cMat& output, cvc::cMat& input) {
     std::complex<double> s = cvc::sum(input);
     double mean = s.real() / input.size().area();
@@ -206,15 +112,7 @@ void PupilComputeOld(cv::Mat& output, double NA, double Lambda, double ps){
     merge(planes, 2, output);
 }
 
-//TODO test
 void PupilCompute(cvc::cMat& output, double NA, double Lambda, double ps){
-
-    //TODO figure out what to do with Mat[] and merge
-    // Mat planes[] = {Mat::zeros(output.rows, output.cols, CV_64FC1),
-    //     Mat::zeros(output.rows, output.cols, CV_64FC1)};
-    //
-	// planes[0] = Mat::zeros(output.rows, output.cols, CV_64FC1);
-    // planes[1] = Mat::zeros(output.rows, output.cols, CV_64FC1);
 
     int16_t r = output.rows();
     int16_t c = output.cols();
@@ -227,17 +125,10 @@ void PupilCompute(cvc::cMat& output, double NA, double Lambda, double ps){
     int16_t naRadius_h = (int16_t)ceil(NA * ps * c / Lambda);
     int16_t naRadius_v = (int16_t)ceil(NA * ps * r / Lambda);
 
-//    cvc::ellipse(planes, center, cv::Size(naRadius_h,naRadius_v), 0, 0, 360, cv::Scalar(1.0), -1, 8, 0);
-
-//    planes.real = cv::ellipse(zeros, center, cv::Size(naRadius_h,naRadius_v), 0, 0, 360, cv::Scalar(1.0), -1, 8, 0);
     cv::ellipse(pupil, center, cv::Size(naRadius_h,naRadius_v), 0, 0, 360, cv::Scalar(1.0), -1, 8, 0);
 
-//    output = planes;
     output.real = pupil.getUMat(cv::ACCESS_RW);
-//    output.image = Mat::zeros(r, c, CV_64FC1).getUMat(CV_64FC1);
     output.imag = zeros.getUMat(cv::ACCESS_RW);
-    //TODO figure out how to make sure this changes what is stored at the memory location. Does it do it
-    //automatically since output is a cMat&?
 }
 
 void SourceComputeOld(cv::Mat* sourceRgb, double RotAngle, double NA_illum, const double Lambda[3], double ps,
@@ -325,56 +216,26 @@ void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const
         // Generate illumination pupil
         cvc::cMat pupil = cvc::zeros(sourceRgb[0].rows(),sourceRgb[0].cols());     //,sourceRgb[0].type());
         PupilCompute(pupil,NA_illum, Lambda[cIdx], ps);
-//        showImg(pupil.real.getMat(ACCESS_READ), "Pupil", -1);
-
-        // Get real part of pupil
-        // cv::Mat pupilSplit[] = {cv::Mat::zeros(pupil.rows, pupil.cols, CV_64FC1),
-        //                         cv::Mat::zeros(pupil.rows, pupil.cols, CV_64FC1)};
-        //
-        // cv::split(pupil,pupilSplit);
 
         //Find the intersection of the sources to make uniform brightness
         cvc::cMat intersect = pupil.copy();
 
-        // center point
         cv::Point center(cvRound(pupil.cols() / 2), cvRound(pupil.rows() / 2));
 
         // generate center cross matrix
         cvc::cMat crossMask = cvc::ones(pupil.rows(), pupil.cols());     //,CV_64FC1);
 
-        //the program is registering that the crossmask has unity color, but not picking it up for some reason
-
-//        std::cout << "CrossMask Element at 0 0 is: " << crossMask.get(0, 0)->real() << std::endl;
-//        std::cout << "pupil element at 0 0 is: " << pupil.get(0, 0)->real() << std::endl;
-//        std::cout << "pupil element at center is: " << pupil.get(center.x, center.y)->real() << std::endl;
-//        showImg(crossMask.real.getMat(ACCESS_READ), "CrossMask before", -1);
-
         // Cross widths in pixels
         double crossH = (crossOffsetV*ps*pupil.rows())/(2*Lambda[cIdx]); // converts NA to pixels
         double crossV = (crossOffsetH*ps*pupil.cols())/(2*Lambda[cIdx]); // converts NA to pixels
 
-//        crossH = 10; crossV = 10
-//        std::cout << "center is: " << center << std::endl;
-//        std::cout << "crossH is: " << crossH << std::endl;
-//        std::cout << "crossV is: " << crossV << std::endl;
-
         // Horizontal
-        //Point pt1(0,center.y-crossV);
-        //Point pt2(pupil.cols,center.y+crossV);
         double rectWidth = sqrt(pupil.cols() * pupil.cols() + pupil.rows() * pupil.rows());
-//        std::cout << "Rect width is: " << rectWidth << std::endl;
         cv::RotatedRect rect1(center, cv::Size(2 * crossH, rectWidth), RotAngle);
         cv::RotatedRect rect2(center, cv::Size(rectWidth, 2 * crossV), RotAngle + 90);
 
         dpc::drawRotatedRect(crossMask, rect1, cv::Scalar(0.0));
         dpc::drawRotatedRect(crossMask, rect2, cv::Scalar(0.0));
-
-//        showImg(crossMask.real.getMat(ACCESS_READ), "CrossMask", -1);
-
-        //crossmask is the plus that separates the quadrants from one another
-        // I think by sending it cv::Scalar(0) it makes the interior of the
-        // cross black-- but, what about the exterior? Assuming we multiply it,
-        // would need the exterior to be unity
 
         double circleWidth = cv::min(pupil.rows(),pupil.cols());
 
@@ -414,22 +275,8 @@ void SourceCompute(cvc::cMat* sourceRgb, double RotAngle, double NA_illum, const
             intersect *= q_temp;
         }
 
-        // Mat complexPlanes[2] = {cv::Mat(q.rows,q.cols,q.type()),
-        //                         cv::Mat(q.rows,q.cols,q.type())};
-
-//        cvc::cMat complexPlanes = cvc::zeros(q.rows(), q.cols());
         cvc::cMat complexPlanes (q.rows, q.cols);
-
-        // add to rgb source and crop to pupil
-        // Mat tmpSource = cv::Mat::zeros(pupil.rows,pupil.cols,pupil.type());
-        //Mat tmpSource = ;
-        //tmpSource = tmpSource.mul(pupilSplit[0]);
-//        complexPlanes[0] = crossMask.mul(q).mul(pupilSplit[0]);
-//        complexPlanes[1] = cv::Mat::zeros(crossMask.rows,crossMask.cols,crossMask.type());
-//        complexPlanes.real = crossMask.mul(q).mul(pupilSplit[0]);
-
 //        complexPlanes = crossMask * q * pupil;
-        //TODO fix the crossmask. Only want a small region to be black not whole thing
         complexPlanes = q * pupil;
 
         //Make brightness of the pupil uniform
@@ -485,30 +332,18 @@ void HrHiComputeOld(cv::Mat& Hi, cv::Mat& Hr, cv::Mat& Source, cv::Mat& Pupil , 
 	complexScalarMultiply(ii,Mb_temp,Hi);
 }
 
-void HaHpCompute(cvc::cMat& Ha, cvc::cMat& Hp, cvc::cMat& Source, cvc::cMat& Pupil , double Lambda){
-//void HrHiCompute(cvc::cMat& H, cvc::cMat& Source, cvc::cMat& Pupil, double Lambda) {
+void HaHpCompute(cvc::cMat& Ha, cvc::cMat& Hp, cvc::cMat& Source, cvc::cMat& Pupil , double Lambda) {
 
 	//Compute DC term
 	cvc::cMat Ma_temp = cvc::zeros(Source.rows(), Source.cols());
 	cvc::cMat Mb_temp = cvc::zeros(Source.rows(), Source.cols());
 	cvc::cMat Mc_temp = cvc::zeros(Source.rows(), Source.cols());
 
-	// cv::Mat FPS_cFP_RI[] = {cv::Mat::zeros(Source.rows, Source.cols, CV_64FC1),
-	// 	                    cv::Mat::zeros(Source.rows, Source.cols, CV_64FC1)};
-	// cv::Mat H_iterm[] = {cv::Mat::zeros(Source.rows, Source.cols, CV_64FC1),
-	// 					  cv::Mat::zeros(Source.rows, Source.cols, CV_64FC1)};
-
     cvc::cMat FPS_cFP_RI = cvc::zeros(Source.rows(), Source.cols());
     cvc::cMat H_iterm = cvc::zeros(Source.rows(), Source.cols());
 
-	// complexConj(Pupil,Ma_temp);
-	// complexMultiply(Pupil,Ma_temp,Mb_temp);
-	// complexMultiply(Source,Mb_temp,Ma_temp);
-
     Ma_temp = Source * Pupil * cvc::conj(Pupil);
 
-//	double DC =  cv::sum(Ma_temp)[0];
-//    double DC = cvc::sum(Ma_temp)[0];
     double DC = cv::sum(Ma_temp.real.getMat(cv::ACCESS_RW))[0];
 
 	//Compute F[S*P]*conj(F[P])
@@ -517,14 +352,10 @@ void HaHpCompute(cvc::cMat& Ha, cvc::cMat& Hp, cvc::cMat& Source, cvc::cMat& Pup
 	Mb_temp = cvc::fft2(Ma_temp);
 	Mc_temp = cvc::conj(Mb_temp);
 
-//	complexMultiply(Source,Pupil,Ma_temp);
     Ma_temp = Source * Pupil;
 	cvc::ifftshift(Ma_temp,Mb_temp);
 	Ma_temp = cvc::fft2(Mb_temp);
-//	complexMultiply(Ma_temp,Mc_temp,Mb_temp);
     FPS_cFP_RI = Ma_temp * Mc_temp;
-//	cv::split(Mb_temp, FPS_cFP_RI);
-//    FPS_cFP_RI = Mb_temp;
 
 	//Compute Ha
     H_iterm.real = (2 * FPS_cFP_RI / DC).real;
@@ -588,7 +419,7 @@ void GenerateAOld(cv::Mat* output, cv::Mat* HrList, cv::Mat* HiList, std::comple
 }
 
 void GenerateA(cvc::cMat* output, cvc::cMat* HaList, cvc::cMat* HpList, std::complex<double> Regularization){
-//void GenerateA(cvc::cMat* output, cvc::cMat* HList, std::complex<double> Regularization) {
+
     cv::Size size = HaList[0].size();
     if (output[0].isEmpty()) {
         output[0] = cvc::zeros(size);
@@ -598,36 +429,24 @@ void GenerateA(cvc::cMat* output, cvc::cMat* HaList, cvc::cMat* HpList, std::com
 		output[4] = cvc::zeros(size);
      }
 
-// 	cv::Mat Ma_temp = cv::Mat::zeros(output[0].rows,output[0].cols,CV_64FC2);
-// 	cv::Mat Mb_temp = cv::Mat::zeros(output[0].rows,output[0].cols,CV_64FC2);
-//	cv::Mat S_temp[2] = {cv::Mat::zeros(output[0].rows,output[0].cols,CV_64FC1),
-//	                     cv::Mat::zeros(output[0].rows,output[0].cols,CV_64FC1)};
-
     cvc::cMat Ma_temp = cvc::zeros(output[0].rows(), output[0].cols());
     cvc::cMat Mb_temp = cvc::zeros(output[0].rows(), output[0].cols());
     cvc::cMat S_temp = cvc::zeros(output[0].rows(), output[0].cols());
 
 	for(int16_t cIdx = 0; cIdx < 4; cIdx++) {
 
-//		complexAbs(HrList[cIdx], Ma_temp);
         Ma_temp = cvc::abs(HaList[cIdx]);
-//		complexMultiply(Ma_temp, Ma_temp, Mb_temp);
         Mb_temp = Ma_temp * Ma_temp;
 		output[0] = output[0] + Mb_temp;
 
 		Ma_temp = cvc::conj(HaList[cIdx]);
-//        complexMultiply(HiList[cIdx], Ma_temp, Mb_temp);
 		Mb_temp = HpList[cIdx] * Ma_temp;
 		output[1] = output[1] + Mb_temp;
 
-		// complexConj(HiList[cIdx], Ma_temp);
-		// complexMultiply(HrList[cIdx], Ma_temp, Mb_temp);
         Ma_temp = cvc::conj(HpList[cIdx]);
         Mb_temp = HaList[cIdx] * Ma_temp;
 		output[2] = output[2] + Mb_temp;
 
-		// complexAbs(HiList[cIdx], Ma_temp);
-		// complexMultiply(Ma_temp, Ma_temp, Mb_temp);
         Ma_temp = cvc::abs(HpList[cIdx]);
         Mb_temp = Ma_temp * Ma_temp;
 		output[3] = output[3] + Mb_temp;
@@ -635,22 +454,9 @@ void GenerateA(cvc::cMat* output, cvc::cMat* HaList, cvc::cMat* HpList, std::com
 
     S_temp = output[0];
 
-//	cv::split(output[0],S_temp);
-//	S_temp[0] = S_temp[0] + Regularization.real();
-//    S += Regularization.real();
-//	cv::merge(S_temp,2,output[0]);
-
-	// cv::split(output[3],S_temp);
-	// S_temp[0] = S_temp[0] + Regularization.imag();
-	// cv::merge(S_temp,2,output[3]);
-
-    //output[0] = Re, output[3] = Im?
-
     output[0] += Regularization.real();
     output[3] += Regularization.imag();
 
-//	complexMultiply(output[0], output[3], Ma_temp);
-//	complexMultiply(output[1], output[2], Mb_temp);
     Ma_temp = output[0] * output[3];
     Mb_temp = output[1] * output[2];
 	output[4] = Mb_temp - Ma_temp;
@@ -715,8 +521,8 @@ void ColorDeconvolution_L2Old(cv::Mat& output, cv::Mat* Intensity, cv::Mat* A, c
 
 }
 
-void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HaList, cvc::cMat* HpList, double Lambda) {
-//void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HList, double Lambda) {
+void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A, cvc::cMat* HaList,
+        cvc::cMat* HpList, double Lambda) {
 
     cv::Size size = output.size();
 
@@ -727,13 +533,7 @@ void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A
 	cvc::cMat I1 = cvc::zeros(size);
 	cvc::cMat I2 = cvc::zeros(size);
 
-//	cv::Mat S_temp[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
-//	                     cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
-//	cv::Mat outputS[2] = {cv::Mat::zeros(output.rows,output.cols,CV_64FC1),
-//				          cv::Mat::zeros(output.rows,output.cols,CV_64FC1)};
-
     cvc::cMat S_temp = cvc::zeros(size);
-//    cvc::cMat outputS = cvc::zeros(output.rows(), output.cols());
 
 	for(int16_t cIdx=0; cIdx<3; cIdx++) {
         S_temp.real = Intensity[cIdx].real;
@@ -751,33 +551,10 @@ void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A
         I2 = I2 + Mc_temp;
 	}
 
-//    Ma_temp = I1 * A[3];
-//    Mb_temp = I2 * A[1];
-//    Mc_temp = (Mb_temp - Ma_temp) / A[4];
-
-    //jk that didn't work
     Mc_temp = (I2 * A[1] - I1 * A[3]) / A[4];
-    // Mc_temp = I2 * A[1] - I1 * A[3];
-    // cvc::cMat t = Mc_temp / A[4];
-    // // keep imag part, but divide real part
-    // Mc_temp.real = t.real;
-
-    //TODO A[4].imag is around 0, so it may blow up and that might be what's causing
-    // the scaling problems. Try only dividing the real part of Mc_temp.
-
     S_temp = cvc::ifft2(Mc_temp);
-    cv::Mat temp = cv::Mat::zeros(size, CV_64FC2);
-    exp(S_temp.real.getMat(cv::ACCESS_RW), temp);
-    output.real = temp.getUMat(cv::ACCESS_RW);
-    // exponentiating it makes it wonky. Check out scaling
-    // when I show S_temp on the old one, it has more contrast
-//    showImg(S_temp.real.getMat(cv::ACCESS_RW), "S_temp", -1);
     output.real = cvc::exp(S_temp).real;
-//    output.real = S_temp.real;
 
-//    Ma_temp = I2 * A[0];
-//    Mb_temp = I1 * A[2];
-//    Mc_temp = (Mb_temp - Ma_temp) / A[4];
     Mc_temp = (I1 * A[2] - I2 * A[0]) / A[4];
     Ma_temp = cvc::ifft2(Mc_temp);
     S_temp = Ma_temp;

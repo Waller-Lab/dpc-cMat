@@ -137,13 +137,6 @@ void showCMatStack(cvc::cMat * &imgStack, int stackCount, std::string title = ""
         } else {
             disp = imgStack[i];
         }
-        // showImg(imgStack[i].real.getMat(ACCESS_READ), title + std::to_string(i)
-        //     + ", Real Part", -1);
-        // showImg(imgStack[i].imag.getMat(ACCESS_READ), title + std::to_string(i)
-        //     + ", Imaginary Part", -1);
-        // cvc::cMat ab = cvc::abs(imgStack[i]);
-        // showImg(ab.real.getMat(ACCESS_READ), title + std::to_string(i)
-        //     + ", Norm", -1);
         showImg(disp.real.getMat(ACCESS_READ), title + std::to_string(i)
             + ", Real Part", -1);
         showImg(disp.imag.getMat(ACCESS_READ), title + std::to_string(i)
@@ -338,24 +331,6 @@ void oldMain() {
     GenerateAOld(A,HrList,HiList,Regularization);
 
 	ColorDeconvolution_L2Old(CDPC_Results, imgC, A, HrList, HiList, lambda[1]);
-	//writes the output matrix to a file for comparison
-    /*
-	std::ofstream output("outputMatrix.txt");
-	output << "Rows: " << CDPC_Results.rows << std::endl;
-	output << "Cols: " << CDPC_Results.cols << std::endl;
-	for(int i = 0; i < CDPC_Results.rows; i++) // loop through y
- 	{
-    	const double* m_i = CDPC_Results.ptr<double>(i);
-     	for(int j = 0; j < CDPC_Results.cols; j++)
-     	{
-     		output << m_i[CDPC_Results.cols * i + j] << " ";
-     		if (j % 10 == 0) {
-     			output << std::endl;
-     		}
-    	}
- 	}
-	output.close();
-    */
 	showComplexImg(CDPC_Results,SHOW_COMPLEX_REAL,"Recovered Amplitude",-1);
 	showComplexImg(CDPC_Results,SHOW_COMPLEX_IMAGINARY,"Recovered Phase", cv::COLORMAP_JET);
 
@@ -391,7 +366,6 @@ void testMain() {
 
     if (type == "dpc") {
         nImgs = loadImageStack(imageFileName.c_str(), mats);
-//        mats.convertTo(mats, CV_64FC1);
         for (int i = 0; i < nImgs; i++) {
             mats[i].convertTo(mats[i], CV_64FC1);
         }
@@ -422,14 +396,12 @@ void testMain() {
     cv::Size size = mats[0].size();
     cvc::cMat* images = new cvc::cMat[nImgs];
     for (int i = 0; i < nImgs; i++) {
-//        images[i] = *(new cvc::cMat(mats[i]));
         cvc::cMat orig = *(new cvc::cMat(mats[i]));
         Normalize(images[i], orig);
     }
-//    showCMatStack(images, nImgs, "Image ");
     showReCMatStack(images, nImgs, "Image ");
 
-    double systemNa = common.get("objectiveNa", 0).asFloat();      //TODO systemNa = objectiveNa?
+    double systemNa = common.get("objectiveNa", 0).asFloat();
     double illumNa = common.get("illuminationNa", 0).asFloat();
     double systemMag = common.get("systemMag", 0).asFloat();
 
@@ -455,15 +427,12 @@ void testMain() {
     }
     std::cout << "Source Rotation Angle: " << srcRot << std::endl;
 
-    //access values by sourceRotation[i].asFloat()
-//    std::cout << rotVal[1].asFloat() << std::endl;
     double ps = common.get("pixelSize",0).asFloat();
     double ps_eff = ps/systemMag;
 
     std::cout << "Pixel Size is: " << ps << std::endl;
 
     Json::Value lambdas = common.get("wavelengthList", 0);
-//    double lambda [3];
     double lambda [4];
 
     lambda[0] = lambdas[0].asDouble();
@@ -477,8 +446,6 @@ void testMain() {
 
     std::string sourceType = common.get("sourceType","Quadrant").asString();
     int8_t nSources;
-    // Get source calibration coefficients
-    // TODO determine if we want Quadrant or Tri
     if (sourceType == "Quadrant") {
         nSources = 4;
     } else if (sourceType == "Tri") {
@@ -539,17 +506,11 @@ void testMain() {
     	// Generate Pupil
     	cvc::cMat Pupil = cvc::zeros(size);
     	PupilCompute(Pupil, systemNa, lambda[sIdx], ps_eff);
-        // ptr = &Pupil;
-        // showCMatStack(ptr, 1);
-
-        //HrHiCompute(HrList[sIdx], HiList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
         HaHpCompute(HaList[sIdx], HpList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
-	}
-    ptr = HaList;
-    showCMatStack(ptr, 4, "Amplitude Transfer Function ", true);
 
-    ptr = HpList;
-    showCMatStack(ptr, 4, "Phase Transfer Function ", true);
+        showImg(HaList[sIdx].real.getMat(ACCESS_READ), "Amplitude Transfer Function " + std::to_string(sIdx), -1);
+        showImg(HpList[sIdx].imag.getMat(ACCESS_READ), "Phase Transfer Function " + std::to_string(sIdx), -1);
+	}
 
     // Deconvolution Process
 
