@@ -126,21 +126,48 @@ void showImgStack(cv::UMat * &imgStack, int stackCount)
     cv::destroyAllWindows();
 }
 
-void showCMatStack(cvc::cMat * &imgStack, int stackCount, std::string title = "") {
+void showCMatStack(cvc::cMat * &imgStack, int stackCount, std::string title = "", bool shift = false) {
+    if (title == "") {
+        title = "Image ";
+    }
+    for (int i = 0; i < stackCount; i++) {
+        cvc::cMat disp = cvc::zeros(imgStack[i].size());
+        if (shift) {
+            cvc::fftshift(imgStack[i], disp);
+        } else {
+            disp = imgStack[i];
+        }
+        // showImg(imgStack[i].real.getMat(ACCESS_READ), title + std::to_string(i)
+        //     + ", Real Part", -1);
+        // showImg(imgStack[i].imag.getMat(ACCESS_READ), title + std::to_string(i)
+        //     + ", Imaginary Part", -1);
+        // cvc::cMat ab = cvc::abs(imgStack[i]);
+        // showImg(ab.real.getMat(ACCESS_READ), title + std::to_string(i)
+        //     + ", Norm", -1);
+        showImg(disp.real.getMat(ACCESS_READ), title + std::to_string(i)
+            + ", Real Part", -1);
+        showImg(disp.imag.getMat(ACCESS_READ), title + std::to_string(i)
+            + ", Imaginary Part", -1);
+        cvc::cMat ab = cvc::abs(disp);
+        showImg(ab.real.getMat(ACCESS_READ), title + std::to_string(i)
+            + ", Norm", -1);
+
+    }
+    cv::waitKey();
+    cv::destroyAllWindows();
+}
+
+void showReCMatStack(cvc::cMat * &imgStack, int stackCount, std::string title = "") {
     if (title == "") {
         title = "Image ";
     }
     for (int i = 0; i < stackCount; i++) {
         showImg(imgStack[i].real.getMat(ACCESS_READ), title + std::to_string(i)
             + ", Real Part", -1);
-        showImg(imgStack[i].imag.getMat(ACCESS_READ), title + std::to_string(i)
-            + ", Imaginary Part", -1);
-        cvc::cMat ab = cvc::abs(imgStack[i]);
-        showImg(ab.real.getMat(ACCESS_READ), title + std::to_string(i)
-            + ", Norm", -1);
     }
     cv::waitKey();
     cv::destroyAllWindows();
+
 }
 
 void testRange() {
@@ -395,9 +422,12 @@ void testMain() {
     cv::Size size = mats[0].size();
     cvc::cMat* images = new cvc::cMat[nImgs];
     for (int i = 0; i < nImgs; i++) {
-        images[i] = *(new cvc::cMat(mats[i]));
+//        images[i] = *(new cvc::cMat(mats[i]));
+        cvc::cMat orig = *(new cvc::cMat(mats[i]));
+        Normalize(images[i], orig);
     }
-    showCMatStack(images, nImgs, "Image ");
+//    showCMatStack(images, nImgs, "Image ");
+    showReCMatStack(images, nImgs, "Image ");
 
     double systemNa = common.get("objectiveNa", 0).asFloat();      //TODO systemNa = objectiveNa?
     double illumNa = common.get("illuminationNa", 0).asFloat();
@@ -487,7 +517,7 @@ void testMain() {
         sourceCenterWidthHorz, sourceCenterWidthVert, sourceCoefficients);
     cvc::cMat* ptr;
     ptr = Source;
-    showCMatStack(ptr, 4, "Source ");
+    showReCMatStack(ptr, 4, "Source ");
 
 	// Generate Transfer Functions
 
@@ -516,27 +546,20 @@ void testMain() {
         HaHpCompute(HaList[sIdx], HpList[sIdx], Source[sIdx], Pupil, lambda[sIdx]);
 	}
     ptr = HaList;
-    showCMatStack(ptr, 4, "Amplitude Transfer Function ");
+    showCMatStack(ptr, 4, "Amplitude Transfer Function ", true);
 
     ptr = HpList;
-    showCMatStack(ptr, 4, "Phase Transfer Function ");
+    showCMatStack(ptr, 4, "Phase Transfer Function ", true);
 
     // Deconvolution Process
 
 	cvc::cMat CDPC_Results = cvc::zeros(size);
-	std::complex<double> Regularization = std::complex<double>(1.0e-1,1.0e-3);
+	std::complex<double> Regularization = std::complex<double>(1.0e-2,1.0e-2);
 
 	cvc::cMat A[5];
-
     GenerateA(A, HaList, HpList, Regularization);
 
-//    ptr = &A[4];
-//    showCMatStack(ptr, 1, "A[4]");
-
-//	ColorDeconvolution_L2(CDPC_Results, imgC, A, HrList, HiList, lambda[1]);
     ColorDeconvolution_L2(CDPC_Results, images, A, HaList, HpList, lambda[1]);
-//	showComplexImg(CDPC_Results,SHOW_COMPLEX_REAL,"Recovered Amplitude",-1);
-//	showComplexImg(CDPC_Results,SHOW_COMPLEX_IMAGINARY,"Recovered Phase", cv::COLORMAP_JET);
     showImg(CDPC_Results.real.getMat(ACCESS_READ), "Recovered Amplitude", -1);
     showImg(CDPC_Results.imag.getMat(ACCESS_READ), "Recovered Phase");
 

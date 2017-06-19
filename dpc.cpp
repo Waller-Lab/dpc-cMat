@@ -181,6 +181,12 @@ void Raw2Color(const cv::Mat& IntensityC, cv::Mat* output){
     output[2] = (output[2]-meanB)/meanB;
 }
 
+void Normalize(cvc::cMat& output, cvc::cMat& input) {
+    std::complex<double> s = cvc::sum(input);
+    double mean = s.real() / input.size().area();
+    output = input / mean - 1.0;
+}
+
 void PupilComputeOld(cv::Mat& output, double NA, double Lambda, double ps){
 
     //TODO figure out what to do with Mat[] and merge
@@ -765,8 +771,9 @@ void ColorDeconvolution_L2(cvc::cMat& output, cvc::cMat* Intensity, cvc::cMat* A
     output.real = temp.getUMat(cv::ACCESS_RW);
     // exponentiating it makes it wonky. Check out scaling
     // when I show S_temp on the old one, it has more contrast
-    showImg(S_temp.real.getMat(cv::ACCESS_RW), "S_temp", -1);
+//    showImg(S_temp.real.getMat(cv::ACCESS_RW), "S_temp", -1);
     output.real = cvc::exp(S_temp).real;
+//    output.real = S_temp.real;
 
 //    Ma_temp = I2 * A[0];
 //    Mb_temp = I1 * A[2];
